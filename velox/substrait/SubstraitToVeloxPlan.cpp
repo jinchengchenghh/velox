@@ -788,6 +788,7 @@ core::PlanNodePtr SubstraitVeloxPlanConverter::toVeloxPlan(
   }
 
   // Parse local files and construct split info.
+  bool isBucket = false;
   if (sRead.has_local_files()) {
     using SubstraitFileFormatCase =
         ::substrait::ReadRel_LocalFiles_FileOrFiles::FileFormatCase;
@@ -795,12 +796,19 @@ core::PlanNodePtr SubstraitVeloxPlanConverter::toVeloxPlan(
     splitInfo->paths.reserve(fileList.size());
     splitInfo->starts.reserve(fileList.size());
     splitInfo->lengths.reserve(fileList.size());
+    splitInfo->buckets.reserve(fileList.size());
     for (const auto& file : fileList) {
       // Expect all Partitions share the same index.
       splitInfo->partitionIndex = file.partition_index();
       splitInfo->paths.emplace_back(file.uri_file());
       splitInfo->starts.emplace_back(file.start());
       splitInfo->lengths.emplace_back(file.length());
+      if (file.has_bucket()) {
+        splitInfo->buckets.emplace_back(file.bucket());
+        isBucket = true;
+      } else {
+        splitInfo->buckets.emplace_back(std::nullopt);
+      }
       switch (file.file_format_case()) {
         case SubstraitFileFormatCase::kOrc:
         case SubstraitFileFormatCase::kDwrf:
@@ -904,11 +912,22 @@ core::PlanNodePtr SubstraitVeloxPlanConverter::toVeloxPlan(
         colNameList[idx], columnType, veloxTypeList[idx]);
     outNames.emplace_back(outName);
   }
-  auto outputType = ROW(std::move(outNames), std::move(veloxTypeList));
 
   if (sRead.has_virtual_table()) {
+    auto outputType = ROW(std::move(outNames), std::move(veloxTypeList));
     return toVeloxPlan(sRead, outputType);
   } else {
+    static const char* kBucket = "$bucket";
+    if (isBucket) {
+      assignments[kBucket] =
+          std::make_shared<connector::hive::HiveColumnHandle>(
+              kBucket,
+              connector::hive::HiveColumnHandle::ColumnType::kSynthesized,
+              INTEGER());
+      outNames.insert(outNames.begin(), kBucket);
+      veloxTypeList.insert(veloxTypeList.begin(), INTEGER());
+    }
+    auto outputType = ROW(std::move(outNames), std::move(veloxTypeList));
     auto tableScanNode = std::make_shared<core::TableScanNode>(
         nextPlanNodeId(), outputType, tableHandle, assignments);
     // Set split info map.

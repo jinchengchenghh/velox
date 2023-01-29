@@ -38,6 +38,8 @@ struct SplitInfo {
   /// The lengths to be scanned.
   std::vector<u_int64_t> lengths;
 
+  std::vector<std::optional<int32_t>> buckets;
+
   /// The file format of the files to be scanned.
   dwio::common::FileFormat format;
 };
