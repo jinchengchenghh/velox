@@ -21,6 +21,8 @@
 #include "velox/dwio/parquet/reader/StructColumnReader.h"
 #include "velox/dwio/parquet/thrift/ThriftTransport.h"
 
+#include <folly/String.h>
+
 namespace facebook::velox::parquet {
 
 ReaderBase::ReaderBase(
@@ -432,8 +434,13 @@ std::shared_ptr<const RowType> ReaderBase::createRowType(
   std::vector<std::string> childNames;
   std::vector<TypePtr> childTypes;
   for (auto& child : children) {
-    childNames.push_back(
-        std::static_pointer_cast<const ParquetTypeWithId>(child)->name_);
+    auto childName = std::static_pointer_cast<const ParquetTypeWithId>(child)->name_;
+    folly::toLowerAscii(childName);
+    if (std::find(childNames.begin(), childNames.end(), childName) == childNames.end()) {
+      childNames.push_back(childName);
+    } else {
+      VELOX_USER_FAIL("Found duplicate field(s) {} in case-insensitive mode", childName);
+    }
     childTypes.push_back(child->type);
   }
   return TypeFactory<TypeKind::ROW>::create(
