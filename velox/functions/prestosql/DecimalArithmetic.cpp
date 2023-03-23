@@ -17,6 +17,7 @@
 #include "velox/expression/DecodedArgs.h"
 #include "velox/expression/VectorFunction.h"
 #include "velox/type/DecimalUtil.h"
+#include "velox/type/DecimalUtilOp.h"
 
 namespace facebook::velox::functions {
 namespace {
@@ -40,9 +41,17 @@ class DecimalBaseFunction : public exec::VectorFunction {
       const TypePtr& resultType, // cannot used in spark
       exec::EvalCtx& context,
       VectorPtr& result) const override {
+    // Firstly, we get velox result which has computed new type, and then
+    // rescale to left type
+    std::cout << "args[0] " << args[0]->type()->toString() << std::endl;
+    std::cout << "args[0] " << args[0]->toString(0, 5) << std::endl;
+    std::cout << "args[1] " << args[1]->type()->toString() << std::endl;
+    std::cout << "args[1] " << args[1]->toString(0, 5) << std::endl;
+    uint8_t tmp = Operation::computeRescaleFactor(0, 0, 0);
     // Here we can not use `resultType`, because this type derives from
     // substrait plan in spark spark arithmetic result type is left datatype,
     // but velox need new computed type
+
     auto rawResults = prepareResults(rows, context, result);
     if (args[0]->isConstantEncoding() && args[1]->isFlatEncoding()) {
       // Fast path for (const, flat).
@@ -86,6 +95,8 @@ class DecimalBaseFunction : public exec::VectorFunction {
             bRescale_);
       });
     }
+
+    std::cout << "result " << result->toString(0, 5) << std::endl;
   }
 
  private:
@@ -132,6 +143,7 @@ class Addition {
 
   inline static uint8_t
   computeRescaleFactor(uint8_t fromScale, uint8_t toScale, uint8_t rScale = 0) {
+    std::cout << "add" << std::endl;
     return std::max(0, toScale - fromScale);
   }
 
@@ -178,6 +190,7 @@ class Subtraction {
 
   inline static uint8_t
   computeRescaleFactor(uint8_t fromScale, uint8_t toScale, uint8_t rScale = 0) {
+    std::cout << "-" << std::endl;
     return std::max(0, toScale - fromScale);
   }
 
@@ -203,6 +216,7 @@ class Multiply {
 
   inline static uint8_t
   computeRescaleFactor(uint8_t fromScale, uint8_t toScale, uint8_t rScale = 0) {
+    std::cout << "*" << std::endl;
     return 0;
   }
 
@@ -220,26 +234,31 @@ class Divide {
   template <typename R, typename A, typename B>
   inline static void
   apply(R& r, const A& a, const B& b, uint8_t aRescale, uint8_t /*bRescale*/) {
-    DecimalUtil::divideWithRoundUp<R, A, B>(r, a, b, false, aRescale, 0);
+    DecimalUtilOp::divideWithRoundUp<R, A, B>(r, a, b, false, aRescale, 0);
   }
 
   inline static uint8_t
   computeRescaleFactor(uint8_t fromScale, uint8_t toScale, uint8_t rScale) {
+    std::cout << "/" << std::endl;
     return rScale - fromScale + toScale;
   }
 
   inline static std::pair<uint8_t, uint8_t> computeResultPrecisionScale(
       const uint8_t aPrecision,
       const uint8_t aScale,
-      const uint8_t /*bPrecision*/,
+      const uint8_t bPrecision,
       const uint8_t bScale) {
-    auto precision =
-        std::min(38, aPrecision + bScale + std::max(0, bScale - aScale));
-    // must use more big scale, otherwise the final result is not same with
-    // spark, the scale will be not enough
-    return {
-        precision,
-        std::max(precision, static_cast<int32_t>(std::max(aScale, bScale)))};
+    auto scale = std::max(6, aScale + bPrecision + 1);
+    auto precision = aPrecision - aScale + bScale + scale;
+    if (precision > 38) {
+      int32_t min_scale = std::min(scale, 6);
+      int32_t delta = precision - 38;
+      precision = 38;
+      scale = std::max(scale - delta, min_scale);
+    }
+    std::cout << "precision is " << precision << " scale is " << scale
+              << std::endl;
+    return {precision, scale};
   }
 };
 
@@ -286,10 +305,16 @@ std::vector<std::shared_ptr<exec::FunctionSignature>> decimalDivideSignature() {
           .integerVariable("b_scale")
           .integerVariable(
               "r_precision",
-              "min(38, a_precision + b_scale + max(0, b_scale - a_scale))")
+              "min(38, a_precision - a_scale + b_scale + max(6, a_scale + b_precision + 1))")
           .integerVariable(
               "r_scale",
-              "max(max(a_scale, b_scale), min(38, a_precision + b_scale + max(0, b_scale - a_scale)))")
+              "min(37, max(6, a_scale + b_precision + 1))") // if precision is
+                                                            // more than 38,
+                                                            // scale has new
+                                                            // value, this check
+                                                            // constrait is not
+                                                            // same with result
+                                                            // type
           .returnType("DECIMAL(r_precision, r_scale)")
           .argumentType("DECIMAL(a_precision, a_scale)")
           .argumentType("DECIMAL(b_precision, b_scale)")
@@ -304,10 +329,13 @@ std::shared_ptr<exec::VectorFunction> createDecimalFunction(
   auto bType = inputArgs[1].type;
   auto [aPrecision, aScale] = getDecimalPrecisionScale(*aType);
   auto [bPrecision, bScale] = getDecimalPrecisionScale(*bType);
+
   auto [rPrecision, rScale] = Operation::computeResultPrecisionScale(
       aPrecision, aScale, bPrecision, bScale);
   uint8_t aRescale = Operation::computeRescaleFactor(aScale, bScale, rScale);
   uint8_t bRescale = Operation::computeRescaleFactor(bScale, aScale, rScale);
+  std::cout << "arithmetic type " << aType->toString() << " "
+            << bType->toString() << " rPrecision " << rPrecision << std::endl;
   if (aType->kind() == TypeKind::SHORT_DECIMAL) {
     if (bType->kind() == TypeKind::SHORT_DECIMAL) {
       if (rPrecision > DecimalType<TypeKind::SHORT_DECIMAL>::kMaxPrecision) {

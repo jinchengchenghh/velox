@@ -35,6 +35,7 @@ class CheckOverflowFunction final : public exec::VectorFunction {
     auto fromType = args[0]->type();
     auto toType = args[1]->type();
     context.ensureWritable(rows, toType, resultRef);
+    std::cout << "check input " << args[0]->toString(0, 5) << std::endl;
     if (toType->kind() == TypeKind::SHORT_DECIMAL) {
       if (fromType->kind() == TypeKind::SHORT_DECIMAL) {
         applyForVectorType<UnscaledShortDecimal, UnscaledShortDecimal>(
@@ -87,6 +88,7 @@ class CheckOverflowFunction final : public exec::VectorFunction {
         resultRef->setNull(row, true);
       }
     });
+    std::cout << "check result " << resultRef->toString(0, 5) << std::endl;
   }
 };
 

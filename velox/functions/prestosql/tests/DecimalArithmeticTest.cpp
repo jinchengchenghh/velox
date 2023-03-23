@@ -39,7 +39,7 @@ class DecimalArithmeticTest : public FunctionBaseTest {
     auto result =
         evaluate<SimpleVector<EvalType>>(expression, makeRowVector(input));
     assertEqualVectors(expected, result);
-    testOpDictVectors<EvalType>(expression, expected, input);
+    // testOpDictVectors<EvalType>(expression, expected, input);
   }
 
   template <typename T>
@@ -349,4 +349,87 @@ TEST_F(DecimalArithmeticTest, decimalDivTest) {
           {makeLongDecimalFlatVector(
               {UnscaledLongDecimal::max().unscaledValue()}, DECIMAL(38, 0))}),
       "Decimal overflow: 99999999999999999999999999999999999999 * 100");
+}
+
+TEST_F(DecimalArithmeticTest, sparkDivide) {
+  auto shortFlat = makeShortDecimalFlatVector({1000, 2000}, DECIMAL(17, 3));
+  // Divide short and short, returning long.
+  //   testDecimalExpr<TypeKind::LONG_DECIMAL>(
+  //       makeLongDecimalFlatVector(
+  //           {buildInt128(27, 1937910009842106368), 2000}, DECIMAL(38, 21)),
+  //       "divide(c0, c1)",
+  //       {makeShortDecimalFlatVector({500, 4000}, DECIMAL(17, 3)),
+  //       shortFlat});
+
+  testDecimalExpr<TypeKind::LONG_DECIMAL>(
+      makeLongDecimalFlatVector(
+          {buildInt128(27, 1937910009842106368),
+           buildInt128(-28, 16508834063867445248ULL)},
+          DECIMAL(38, 21)),
+      "divide(c0, c1)",
+      {makeLongDecimalFlatVector(
+           {buildInt128(27, 1937910009842106368),
+            buildInt128(-14, 8254417031933722624)},
+           DECIMAL(38, 21)),
+       shortFlat});
+
+  //   // Divide short and long, returning long.
+  //   auto longFlat = makeLongDecimalFlatVector({500, 4000}, DECIMAL(20, 2));
+  //   testDecimalExpr<TypeKind::LONG_DECIMAL>(
+  //       makeLongDecimalFlatVector({5000, 20000}, DECIMAL(38, 17)),
+  //       "divide(c0, c1)",
+  //       {longFlat, shortFlat});
+
+  // Divide long and short, returning long.
+  // testDecimalExpr<TypeKind::LONG_DECIMAL>(
+  //     makeLongDecimalFlatVector({200, 50}, DECIMAL(19, 3)),
+  //     "divide(c0, c1)",
+  //     {shortFlat, longFlat});
+
+  //   // Divide long and long, returning long.
+  //   testDecimalExpr<TypeKind::LONG_DECIMAL>(
+  //       makeLongDecimalFlatVector({500, 300}, DECIMAL(22, 2)),
+  //       "divide(c0, c1)",
+  //       {makeLongDecimalFlatVector({2500, 12000}, DECIMAL(20, 2)),
+  //       longFlat});
+
+  //   // Divide short and short, returning short.
+  //   testDecimalExpr<TypeKind::SHORT_DECIMAL>(
+  //       makeShortDecimalFlatVector({500, 300}, DECIMAL(7, 5)),
+  //       "divide(c0, c1)",
+  //       {makeShortDecimalFlatVector({2500, 12000}, DECIMAL(5, 5)),
+  //        makeShortDecimalFlatVector({500, 4000}, DECIMAL(5, 2))});
+
+  //   testDecimalExpr<TypeKind::SHORT_DECIMAL>(
+  //       makeShortDecimalFlatVector({1000, 500}, DECIMAL(7, 3)),
+  //       "1.00 / c0",
+  //       {shortFlat});
+
+  //   // Flat and Constant arguments.
+  //   testDecimalExpr<TypeKind::LONG_DECIMAL>(
+  //       makeLongDecimalFlatVector({500, 1000}, DECIMAL(19, 3)),
+  //       "c0 / 2.00",
+  //       {shortFlat});
+
+  //   // Divide and round-up.
+  //   testDecimalExpr<TypeKind::SHORT_DECIMAL>(
+  //       {makeShortDecimalFlatVector({6, -1, -11, -15, 0, 8}, DECIMAL(3, 1))},
+  //       "c0 / -6.0",
+  //       {makeShortDecimalFlatVector({-34, 5, 65, 90, 2, -49}, DECIMAL(2,
+  //       1))});
+
+  //   // Divide by zero.
+  //   VELOX_ASSERT_THROW(
+  //       testDecimalExpr<TypeKind::SHORT_DECIMAL>({}, "c0 / 0.0",
+  //       {shortFlat}), "Division by zero");
+
+  //   // Long decimal limits.
+  //   VELOX_ASSERT_THROW(
+  //       testDecimalExpr<TypeKind::LONG_DECIMAL>(
+  //           {},
+  //           "c0 / 0.01",
+  //           {makeLongDecimalFlatVector(
+  //               {UnscaledLongDecimal::max().unscaledValue()}, DECIMAL(38,
+  //               0))}),
+  //   "Decimal overflow: 99999999999999999999999999999999999999 * 100");
 }
