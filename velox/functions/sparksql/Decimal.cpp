@@ -90,7 +90,6 @@ class CheckOverflowFunction final : public exec::VectorFunction {
   }
 };
 
-template <typename TInput>
 class MakeDecimalFunction final : public exec::VectorFunction {
   void apply(
       const SelectivityVector& rows,
@@ -137,12 +136,12 @@ class MakeDecimalFunction final : public exec::VectorFunction {
           LONG_DECIMAL(
               static_cast<uint8_t>(precision), static_cast<uint8_t>(scale)),
           resultRef);
-      auto result = resultRef->asUnchecked<FlatVector<UnscaledShortDecimal>>()
+      auto result = resultRef->asUnchecked<FlatVector<UnscaledLongDecimal>>()
                         ->mutableRawValues();
       rows.applyToSelected([&](int row) {
         auto unscaled = unscaledVec->valueAt<int64_t>(row);
         if (UnscaledLongDecimal::valueInRange(unscaled)) {
-          result[row] = unscaled;
+          result[row] = UnscaledLongDecimal(unscaled);
         } else {
           if (nullOnOverflow) {
             resultRef->setNull(row, true);
@@ -293,20 +292,9 @@ std::shared_ptr<exec::VectorFunction> makeMakeDecimal(
     const std::string& name,
     const std::vector<exec::VectorFunctionArg>& inputArgs) {
   VELOX_CHECK_EQ(inputArgs.size(), 3);
-  auto fromType = inputArgs[0].type;
-  switch (fromType->kind()) {
-    case TypeKind::SHORT_DECIMAL:
-      return std::make_shared<MakeDecimalFunction<UnscaledShortDecimal>>();
-    case TypeKind::LONG_DECIMAL:
-      return std::make_shared<MakeDecimalFunction<UnscaledLongDecimal>>();
-    case TypeKind::INTEGER:
-      return std::make_shared<MakeDecimalFunction<int32_t>>();
-    case TypeKind::BIGINT:
-      return std::make_shared<MakeDecimalFunction<int64_t>>();
-    default:
-      VELOX_FAIL(
-          "Not support this type {} in make_decimal", fromType->kindName())
-  }
+  static const auto kMakeDecimalFunction =
+      std::make_shared<MakeDecimalFunction>();
+  return kMakeDecimalFunction;
 }
 
 std::shared_ptr<exec::VectorFunction> makeRoundDecimal(
