@@ -17,6 +17,7 @@
 #include "velox/expression/DecodedArgs.h"
 #include "velox/expression/VectorFunction.h"
 #include "velox/type/DecimalUtil.h"
+#include "velox/type/DecimalUtilOp.h"
 
 namespace facebook::velox::functions {
 namespace {
@@ -40,9 +41,6 @@ class DecimalBaseFunction : public exec::VectorFunction {
       const TypePtr& resultType, // cannot used in spark
       exec::EvalCtx& context,
       VectorPtr& result) const override {
-    // Here we can not use `resultType`, because this type derives from
-    // substrait plan in spark spark arithmetic result type is left datatype,
-    // but velox need new computed type
     auto rawResults = prepareResults(rows, context, result);
     if (args[0]->isConstantEncoding() && args[1]->isFlatEncoding()) {
       // Fast path for (const, flat).
@@ -93,6 +91,9 @@ class DecimalBaseFunction : public exec::VectorFunction {
       const SelectivityVector& rows,
       exec::EvalCtx& context,
       VectorPtr& result) const {
+    // Here we can not use `resultType`, because this type derives from
+    // substrait plan in spark spark arithmetic result type is left datatype,
+    // but velox need new computed type
     context.ensureWritable(rows, resultType_, result);
     result->clearNulls(rows);
     return result->asUnchecked<FlatVector<R>>()->mutableRawValues();
@@ -220,7 +221,7 @@ class Divide {
   template <typename R, typename A, typename B>
   inline static void
   apply(R& r, const A& a, const B& b, uint8_t aRescale, uint8_t /*bRescale*/) {
-    DecimalUtil::divideWithRoundUp<R, A, B>(r, a, b, false, aRescale, 0);
+    DecimalUtilOp::divideWithRoundUp<R, A, B>(r, a, b, false, aRescale, 0);
   }
 
   inline static uint8_t
@@ -231,15 +232,17 @@ class Divide {
   inline static std::pair<uint8_t, uint8_t> computeResultPrecisionScale(
       const uint8_t aPrecision,
       const uint8_t aScale,
-      const uint8_t /*bPrecision*/,
+      const uint8_t bPrecision,
       const uint8_t bScale) {
-    auto precision =
-        std::min(38, aPrecision + bScale + std::max(0, bScale - aScale));
-    // must use more big scale, otherwise the final result is not same with
-    // spark, the scale will be not enough
-    return {
-        precision,
-        std::max(precision, static_cast<int32_t>(std::max(aScale, bScale)))};
+    auto scale = std::max(6, aScale + bPrecision + 1);
+    auto precision = aPrecision - aScale + bScale + scale;
+    if (precision > 38) {
+      int32_t min_scale = std::min(scale, 6);
+      int32_t delta = precision - 38;
+      precision = 38;
+      scale = std::max(scale - delta, min_scale);
+    }
+    return {precision, scale};
   }
 };
 
@@ -286,10 +289,16 @@ std::vector<std::shared_ptr<exec::FunctionSignature>> decimalDivideSignature() {
           .integerVariable("b_scale")
           .integerVariable(
               "r_precision",
-              "min(38, a_precision + b_scale + max(0, b_scale - a_scale))")
+              "min(38, a_precision - a_scale + b_scale + max(6, a_scale + b_precision + 1))")
           .integerVariable(
               "r_scale",
-              "max(max(a_scale, b_scale), min(38, a_precision + b_scale + max(0, b_scale - a_scale)))")
+              "min(37, max(6, a_scale + b_precision + 1))") // if precision is
+                                                            // more than 38,
+                                                            // scale has new
+                                                            // value, this check
+                                                            // constrait is not
+                                                            // same with result
+                                                            // type
           .returnType("DECIMAL(r_precision, r_scale)")
           .argumentType("DECIMAL(a_precision, a_scale)")
           .argumentType("DECIMAL(b_precision, b_scale)")
