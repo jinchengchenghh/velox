@@ -236,6 +236,75 @@ class RoundDecimalFunction final : public exec::VectorFunction {
   }
 };
 
+template <typename TInput>
+class AbsFunction final : public exec::VectorFunction {
+  void apply(
+      const SelectivityVector& rows,
+      std::vector<VectorPtr>& args, // Not using const ref so we can reuse args
+      const TypePtr& outputType,
+      exec::EvalCtx& context,
+      VectorPtr& resultRef) const final {
+    VELOX_CHECK_EQ(args.size(), 1);
+    auto inputType = args[0]->type();
+    VELOX_CHECK(inputType->isShortDecimal() || inputType->isLongDecimal(),
+      "ShortDecimal or LongDecimal type is required.");
+
+    exec::DecodedArgs decodedArgs(rows, args, context);
+    auto decimalVector = decodedArgs.at(0);
+    if (inputType->isShortDecimal()) {
+      auto decimalType = inputType->asShortDecimal();
+      context.ensureWritable(
+          rows,
+          SHORT_DECIMAL(decimalType.precision(), decimalType.scale()),
+          resultRef);
+      auto result = resultRef->asUnchecked<FlatVector<UnscaledShortDecimal>>()
+                        ->mutableRawValues();
+      rows.applyToSelected([&](int row) {
+        auto unscaled = abs(decimalVector->valueAt<int64_t>(row));
+        if (UnscaledShortDecimal::valueInRange(unscaled)) {
+          result[row] = UnscaledShortDecimal(unscaled);
+        } else {
+          // TODO: adjust the bahavior according to ANSI.
+          resultRef->setNull(row, true);
+        }
+      });
+    } else {
+      auto decimalType = inputType->asLongDecimal();
+      context.ensureWritable(
+          rows,
+          LONG_DECIMAL(decimalType.precision(), decimalType.scale()),
+          resultRef);
+      auto result = resultRef->asUnchecked<FlatVector<UnscaledLongDecimal>>()
+                        ->mutableRawValues();
+      rows.applyToSelected([&](int row) {
+        auto unscaled = decimalVector->valueAt<int128_t>(row);
+        int128_t absValue;
+        if (unscaled < 0) {
+          uint64_t lowBits;
+          memcpy(&lowBits, &unscaled, sizeof(uint64_t));
+          int64_t highBits = unscaled >> 64;
+          uint64_t resLow = ~lowBits + 1;
+          int64_t resHigh = ~highBits;
+          if (resLow == 0) {
+            resHigh = checkedPlus<int64_t>(resHigh, 1);
+          }
+          auto bits = reinterpret_cast<uint8_t*>(&absValue);
+          memcpy(bits, &resLow, sizeof(uint64_t));
+          memcpy(bits + sizeof(uint64_t), &resHigh, sizeof(int64_t));
+        } else {
+          absValue = unscaled;
+        }
+        if (UnscaledLongDecimal::valueInRange(absValue)) {
+          result[row] = UnscaledLongDecimal(absValue);
+        } else {
+          // TODO: adjust the bahavior according to ANSI.
+          resultRef->setNull(row, true);
+        }
+      });
+    }
+  }
+};
+
 } // namespace
 
 std::vector<std::shared_ptr<exec::FunctionSignature>>
@@ -279,6 +348,17 @@ std::vector<std::shared_ptr<exec::FunctionSignature>> roundDecimalSignatures() {
               .build()};
 }
 
+std::vector<std::shared_ptr<exec::FunctionSignature>> absSignatures() {
+  return {exec::FunctionSignatureBuilder()
+              .integerVariable("a_precision")
+              .integerVariable("a_scale")
+              .integerVariable("r_precision", "min(38, a_precision)")
+              .integerVariable("r_scale", "min(38, a_scale)")
+              .returnType("DECIMAL(r_precision, r_scale)")
+              .argumentType("DECIMAL(a_precision, a_scale)")
+              .build()};
+}
+
 std::shared_ptr<exec::VectorFunction> makeCheckOverflow(
     const std::string& name,
     const std::vector<exec::VectorFunctionArg>& inputArgs) {
@@ -310,6 +390,22 @@ std::shared_ptr<exec::VectorFunction> makeRoundDecimal(
     default:
       VELOX_FAIL(
           "Not support this type {} in round_decimal", fromType->kindName())
+  }
+}
+
+std::shared_ptr<exec::VectorFunction> makeAbs(
+    const std::string& name,
+    const std::vector<exec::VectorFunctionArg>& inputArgs) {
+  VELOX_CHECK_EQ(inputArgs.size(), 1);
+  auto type = inputArgs[0].type;
+  switch (type->kind()) {
+    case TypeKind::SHORT_DECIMAL:
+      return std::make_shared<AbsFunction<UnscaledShortDecimal>>();
+    case TypeKind::LONG_DECIMAL:
+      return std::make_shared<AbsFunction<UnscaledLongDecimal>>();
+    default:
+      VELOX_FAIL(
+          "Not support this type {} in abs", type->kindName())
   }
 }
 
