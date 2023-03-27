@@ -33,7 +33,7 @@ class CheckOverflowFunction final : public exec::VectorFunction {
     // we cannot get input type by signature the input vector origins from
     // DecimalArithmetic, it is a computed type by arithmetic operation
     auto fromType = args[0]->type();
-    auto toType = args[1]->type();
+    auto toType = args[2]->type();
     context.ensureWritable(rows, toType, resultRef);
     if (toType->kind() == TypeKind::SHORT_DECIMAL) {
       if (fromType->kind() == TypeKind::SHORT_DECIMAL) {
@@ -63,13 +63,13 @@ class CheckOverflowFunction final : public exec::VectorFunction {
       exec::EvalCtx& context,
       VectorPtr& resultRef) const {
     auto fromType = args[0]->type();
-    auto toType = args[1]->type();
+    auto toType = args[2]->type();
     auto result =
         resultRef->asUnchecked<FlatVector<TOutput>>()->mutableRawValues();
     exec::DecodedArgs decodedArgs(rows, args, context);
     auto decimalValue = decodedArgs.at(0);
-    VELOX_CHECK(decodedArgs.at(2)->isConstantMapping());
-    auto nullOnOverflow = decodedArgs.at(2)->valueAt<bool>(0);
+    VELOX_CHECK(decodedArgs.at(1)->isConstantMapping());
+    auto nullOnOverflow = decodedArgs.at(1)->valueAt<bool>(0);
 
     const auto& fromPrecisionScale = getDecimalPrecisionScale(*fromType);
     const auto& toPrecisionScale = getDecimalPrecisionScale(*toType);
@@ -318,8 +318,8 @@ checkOverflowSignatures() {
               .integerVariable("r_scale", "min(38, b_scale)")
               .returnType("DECIMAL(r_precision, r_scale)")
               .argumentType("DECIMAL(a_precision, a_scale)")
-              .argumentType("DECIMAL(b_precision, b_scale)")
               .argumentType("boolean")
+              .argumentType("DECIMAL(b_precision, b_scale)")
               .build()};
 }
 
