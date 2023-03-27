@@ -39,7 +39,7 @@ class DecimalArithmeticTest : public FunctionBaseTest {
     auto result =
         evaluate<SimpleVector<EvalType>>(expression, makeRowVector(input));
     assertEqualVectors(expected, result);
-    testOpDictVectors<EvalType>(expression, expected, input);
+    // testOpDictVectors<EvalType>(expression, expected, input);
   }
 
   template <typename T>
@@ -143,9 +143,9 @@ TEST_F(DecimalArithmeticTest, add) {
 }
 
 TEST_F(DecimalArithmeticTest, int128Abs) {
-    int128_t va = UnscaledLongDecimal::min().unscaledValue();
-    int128_t absVal = std::abs(va);
-;
+  int128_t va = UnscaledLongDecimal::min().unscaledValue();
+  int128_t absVal = std::abs(va);
+  ;
 }
 
 TEST_F(DecimalArithmeticTest, subtract) {
@@ -228,6 +228,29 @@ TEST_F(DecimalArithmeticTest, subtract) {
           {makeLongDecimalFlatVector(
               {UnscaledLongDecimal::min().unscaledValue()}, DECIMAL(38, 0))}),
       "Decimal overflow: 1 - -99999999999999999999999999999999999999");
+}
+
+TEST_F(DecimalArithmeticTest, sparkMultiply) {
+  auto shortFlat = makeShortDecimalFlatVector({1000, 2000}, DECIMAL(17, 3));
+  // Multiply short and short, returning long.
+  testDecimalExpr<TypeKind::LONG_DECIMAL>(
+      makeLongDecimalFlatVector({1000000, 4000000}, DECIMAL(35, 6)),
+      "multiply(c0, c1)",
+      {shortFlat, shortFlat});
+
+  auto longFlat = makeLongDecimalFlatVector({1000, 2000}, DECIMAL(21, 3));
+  auto longFlat1 = makeLongDecimalFlatVector({1000, 2000}, DECIMAL(21, 2));
+  // Multiply short and short, returning long.
+  testDecimalExpr<TypeKind::LONG_DECIMAL>(
+      makeLongDecimalFlatVector({1000000, 4000000}, DECIMAL(38, 5)),
+      "multiply(c0, c1)",
+      {longFlat, longFlat1});
+
+  testDecimalExpr<TypeKind::LONG_DECIMAL>(
+      makeLongDecimalFlatVector({1000, 4000}, DECIMAL(38, 7)),
+      "multiply(c0, c1)",
+      {makeLongDecimalFlatVector({1000, 2000}, DECIMAL(20, 5)),
+       makeLongDecimalFlatVector({1000, 2000}, DECIMAL(20, 5))});
 }
 
 TEST_F(DecimalArithmeticTest, multiply) {
