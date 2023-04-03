@@ -139,14 +139,14 @@ class DecimalUtilOp {
 
   // return unscaled value and scale
   inline static std::pair<std::string, uint8_t> splitVarChar(
-      const StringView& value) {
-    std::string s = value.str();
+      const std::string& s) {
     size_t pos = s.find('.');
     if (pos == std::string::npos) {
       return {s.substr(0, pos), 0};
     } else {
       return {
-          s.substr(0, pos) + s.substr(pos + 1, s.length()), s.length() - pos - 1};
+          s.substr(0, pos) + s.substr(pos + 1, s.length()),
+          s.length() - pos - 1};
     }
   }
 
@@ -201,7 +201,7 @@ class DecimalUtilOp {
 
   template <typename TOutput>
   inline static std::optional<TOutput> rescaleVarchar(
-      const StringView inputValue,
+      const std::string inputValue,
       const int toPrecision,
       const int toScale) {
     static_assert(

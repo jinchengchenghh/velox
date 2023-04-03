@@ -191,7 +191,7 @@ void applyDoubleToDecimalCastKernel(
       castResult->asUnchecked<FlatVector<TOutput>>()->mutableRawValues();
   const auto& toPrecisionScale = getDecimalPrecisionScale(*toType);
   context.applyToSelectedNoThrow(rows, [&](vector_size_t row) {
-    auto rescaledValue = DecimalUtil::rescaleDouble<TOutput>(
+    auto rescaledValue = DecimalUtilOp::rescaleDouble<From, TOutput>(
         sourceVector->valueAt(row),
         toPrecisionScale.first,
         toPrecisionScale.second);
@@ -216,7 +216,7 @@ void applyVarCharToDecimalCastKernel(
   const auto& toPrecisionScale = getDecimalPrecisionScale(*toType);
   context.applyToSelectedNoThrow(rows, [&](vector_size_t row) {
     auto rescaledValue = DecimalUtilOp::rescaleVarchar<TOutput>(
-        sourceVector->valueAt(row),
+        sourceVector->valueAt(row).getString(),
         toPrecisionScale.first,
         toPrecisionScale.second);
     if (rescaledValue.has_value()) {
