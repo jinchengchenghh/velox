@@ -69,6 +69,33 @@ T checkedDivide(const T& a, const T& b) {
 }
 
 template <typename T>
+T checkedMultiply(const T& a, const T& b, bool& overflow) {
+  T result;
+  bool overflow = __builtin_mul_overflow(a, b, &result);
+  if (UNLIKELY(overflow)) {
+    overflow = true;
+    return T(-1);
+  }
+  return result;
+}
+
+template <typename T>
+T checkedDivide(const T& a, const T& b, bool& overflow) {
+  if (b == 0) {
+    VELOX_ARITHMETIC_ERROR("division by zero");
+  }
+
+  // Type T can not represent abs(std::numeric_limits<T>::min()).
+  if constexpr (std::is_integral_v<T>) {
+    if (UNLIKELY(a == std::numeric_limits<T>::min() && b == -1)) {
+      overflow = true;
+      return T(-1);
+    }
+  }
+  return a / b;
+}
+
+template <typename T>
 T checkedModulus(const T& a, const T& b) {
   if (UNLIKELY(b == 0)) {
     VELOX_ARITHMETIC_ERROR("Cannot divide by 0");
