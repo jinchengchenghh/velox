@@ -213,7 +213,7 @@ class Multiply {
       uint8_t rPrecision,
       uint8_t rScale,
       bool* overflow) {
-    // derive from Arrow
+    // Derive from Arrow
     if (rPrecision < 38) {
       auto res = checkedMultiply<R>(
           checkedMultiply(R(a), R(b), overflow),
@@ -280,6 +280,7 @@ class Multiply {
             // the right of the rightmost "visible" one. The reason why we have
             // to handle this case separately is because a scale multiplier with
             // a deltaScale 39 does not fit into 128 bit.
+            // This result mismatches with Spark, but spark result is nearly 0.
             r = R(0);
           }
         }

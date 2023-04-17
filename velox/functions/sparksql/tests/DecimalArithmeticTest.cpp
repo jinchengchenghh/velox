@@ -231,7 +231,7 @@ TEST_F(DecimalArithmeticTest, multiply) {
 
   // Big scale * big scale, mismatch with spark result
   // 0.0000060501000000000000000000000000000,
-  // we cannot handle this case, it's intermediate result is beyond int256_t.
+  // Corner case.
   testDecimalExpr<TypeKind::LONG_DECIMAL>(
       makeNullableLongDecimalFlatVector({0}, DECIMAL(38, 37)),
       "c0 * c1",
@@ -253,14 +253,6 @@ TEST_F(DecimalArithmeticTest, multiply) {
       {makeLongDecimalFlatVector(
           {buildInt128(0x08FFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF)},
           DECIMAL(38, 0))});
-}
-
-TEST_F(DecimalArithmeticTest, tmp) {
-  auto shortFlat = makeShortDecimalFlatVector({1000, 2000}, DECIMAL(17, 3));
-  testDecimalExpr<TypeKind::LONG_DECIMAL>(
-      makeNullableLongDecimalFlatVector({std::nullopt}, DECIMAL(21, 6)),
-      "c0 / 0.0",
-      {shortFlat});
 }
 
 TEST_F(DecimalArithmeticTest, decimalDivTest) {
