@@ -638,10 +638,16 @@ class BaseVector {
     return nulls_ ? nulls_->capacity() : 0;
   }
 
+  virtual uint64_t usedSize() const {
+    return nulls_ ? nulls_->size() : 0;
+  }
+
   /// Returns an estimate of the 'retainedSize' of a flat representation of the
   /// data stored in this vector. Returns zero if this is a lazy vector that
   /// hasn't been loaded yet.
   virtual uint64_t estimateFlatSize() const;
+
+  virtual uint64_t estimateFlatUsedSize() const;
 
   /// To safely reuse a vector one needs to (1) ensure that the vector as well
   /// as all its buffers and child vectors are singly-referenced and mutable

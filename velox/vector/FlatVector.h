@@ -349,6 +349,14 @@ class FlatVector final : public SimpleVector<T> {
     return size;
   }
 
+  uint64_t usedSize() const override {
+    auto size = BaseVector::usedSize() + (values_ ? values_->size() : 0);
+    for (auto& buffer : stringBuffers_) {
+      size += buffer->size();
+    }
+    return size;
+  }
+
   /**
    * Used for vectors of type VARCHAR and VARBINARY to hold data referenced by
    * StringView's. It is safe to share these among multiple vectors. These

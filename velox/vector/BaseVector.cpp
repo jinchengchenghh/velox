@@ -690,6 +690,29 @@ uint64_t BaseVector::estimateFlatSize() const {
   return length_ * avgRowSize;
 }
 
+uint64_t BaseVector::estimateFlatUsedSize() const {
+  if (length_ == 0) {
+    return 0;
+  }
+
+  if (isLazyNotLoaded(*this)) {
+    return 0;
+  }
+
+  auto leaf = wrappedVector();
+  // If underlying vector is empty we should return the leaf's single element
+  // size times this vector's size plus any nulls of this vector.
+  if (UNLIKELY(leaf->size() == 0)) {
+    const auto& leafType = leaf->type();
+    return length_ *
+        (leafType->isFixedWidth() ? leafType->cppSizeInBytes() : 0) +
+        BaseVector::usedSize();
+  }
+
+  auto avgRowSize = 1.0 * leaf->usedSize() / leaf->size();
+  return length_ * avgRowSize;
+}
+
 namespace {
 bool isReusableEncoding(VectorEncoding::Simple encoding) {
   return encoding == VectorEncoding::Simple::FLAT ||
