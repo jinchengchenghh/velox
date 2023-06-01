@@ -696,9 +696,12 @@ inline int32_t countLeadingZeros(T word) {
   if constexpr (std::is_same_v<T, uint64_t>) {
     return __builtin_clzll(word);
   } else if constexpr (std::is_same_v<T, __uint128_t>) {
+    // uint128_t
     uint64_t hi = word >> 64;
     uint64_t lo = static_cast<uint64_t>(word);
     return (hi == 0) ? 64 + __builtin_clzll(lo) : __builtin_clzll(hi);
+  } else {
+    return -1;
   }
 }
 

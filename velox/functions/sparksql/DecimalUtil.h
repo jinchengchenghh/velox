@@ -18,12 +18,11 @@
 
 #include <boost/multiprecision/cpp_int.hpp>
 #include <string>
-// #include "velox/common/base/CheckedArithmetic.h"
-// #include "velox/common/base/Exceptions.h"
 #include "velox/type/DecimalUtil.h"
 #include "velox/type/Type.h"
 
-namespace facebook::velox::sparksql {
+namespace facebook::velox::functions::sparksql {
+using uint128_t = __uint128_t;
 using int256_t = boost::multiprecision::int256_t;
 
 class DecimalUtil {
@@ -49,18 +48,12 @@ class DecimalUtil {
       uint8_t aRescale) {
     auto value = num;
     auto valueAbs = std::abs(value);
-    int32_t numOccupied = 0;
-    if constexpr (std::is_same_v<A, UnscaledShortDecimal>) {
-      numOccupied = 64 - bits::countLeadingZeros(valueAbs);
-    } else {
-      numOccupied = 128 - bits::countLeadingZerosUint128(valueAbs);
-    }
-
+    int32_t numOccupied = sizeof(A) * 8 - bits::countLeadingZeros<A>(valueAbs);
     return numOccupied + maxBitsRequiredIncreaseAfterScaling(aRescale);
   }
 
   template <class T, typename = std::enable_if_t<std::is_same_v<T, int64_t>>>
-  inline static T convert(int256_t value, bool& overflow) {
+  inline static int64_t convert(int256_t in, bool& overflow) {
     int64_t result;
     constexpr int256_t uint64Mask = std::numeric_limits<uint64_t>::max();
 
@@ -79,17 +72,16 @@ class DecimalUtil {
     } else {
       result = static_cast<int64_t>(unsignResult);
     }
-    if (!velox::DecimalUtil::valueInShortDecimalRange(
-            isNegative ? -result : result)) {
+    if (result > velox::DecimalUtil::kShortDecimalMax) {
       overflow = true;
     }
     return isNegative ? -result : result;
   }
 
   template <class T, typename = std::enable_if_t<std::is_same_v<T, int128_t>>>
-  inline static T convert(int256_t value, bool& overflow) {
+  inline static int128_t convert(int256_t in, bool& overflow) {
     int128_t result;
-    int128_t int128Max = int128_t(-1L) >> 1;
+    constexpr int128_t int128Max = int128_t(-1L) >> 1;
     constexpr int256_t uint128Mask = std::numeric_limits<uint128_t>::max();
 
     int256_t inAbs = abs(in);
@@ -99,15 +91,15 @@ class DecimalUtil {
     inAbs >>= 128;
 
     if (inAbs > 0) {
-      // we've shifted in by 128-bit, so nothing should be left.
-      *overflow = true;
+      // We've shifted in by 128-bit, so nothing should be left.
+      overflow = true;
     } else if (unsignResult > int128Max) {
-      *overflow = true;
+      overflow = true;
     } else {
       result = static_cast<int128_t>(unsignResult);
     }
-    if (!velox::DecimalUtil::valueInRange(isNegative ? -result : result)) {
-      *overflow = true;
+    if (result > velox::DecimalUtil::kLongDecimalMax) {
+      overflow = true;
     }
     return isNegative ? -result : result;
   }
@@ -143,8 +135,8 @@ class DecimalUtil {
     if (bitsRequiredAfterScaling <= 127) {
       overflow = __builtin_mul_overflow(
           unsignedDividendRescaled,
-          R(velox::DecimalUtil::kPowersOfTen[aRescale],
-            &unsignedDividendRescaled));
+          R(velox::DecimalUtil::kPowersOfTen[aRescale]),
+          &unsignedDividendRescaled);
       if (overflow) {
         return R(-1);
       }
@@ -187,4 +179,4 @@ class DecimalUtil {
     }
   }
 };
-} // namespace facebook::velox::sparksql
+} // namespace facebook::velox::functions::sparksql

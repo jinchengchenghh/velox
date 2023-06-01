@@ -36,15 +36,13 @@ inline static std::pair<uint8_t, uint8_t> adjustPrecisionScale(
 }
 
 std::string getResultScale(std::string precision, std::string scale) {
-  auto res = fmt::format(
+  return fmt::format(
       "({}) <= 38 ? ({}) : max(({}) - ({}) + 38, min(({}), 6))",
       precision,
       scale,
       scale,
       precision,
       scale);
-  std::cout << res << std::endl;
-  return res;
 }
 
 template <
@@ -199,7 +197,6 @@ class DecimalBaseFunction : public exec::VectorFunction {
   const uint8_t bScale_;
   const uint8_t rPrecision_;
   const uint8_t rScale_;
-  const TypePtr resultType_;
 };
 
 class Multiply {
@@ -222,10 +219,9 @@ class Multiply {
     if (rPrecision < 38) {
       R res;
       overflow = __builtin_mul_overflow(a, b, &res);
-
       if (!overflow) {
         r = checkedMultiply<R>(
-            mulRes, R(DecimalUtil::kPowersOfTen[aRescale + bRescale]));
+            res, R(velox::DecimalUtil::kPowersOfTen[aRescale + bRescale]));
       }
     } else if (a == 0 && b == 0) {
       // Handle this separately to avoid divide-by-zero errors.
@@ -243,20 +239,18 @@ class Multiply {
         // Scale down
         // It's possible that the intermediate value does not fit in 128-bits,
         // but the final value will (after scaling down).
-        int32_t totalLeadingZeros =
-            bits::countLeadingZeros<A>(std::abs(a)) + bits::countLeadingZeros<B>(std::abs(b));
+        int32_t totalLeadingZeros = bits::countLeadingZeros<A>(std::abs(a)) +
+            bits::countLeadingZeros<B>(std::abs(b));
         // This check is quick, but conservative. In some cases it will
         // indicate that converting to 256 bits is necessary, when it's not
         // actually the case.
         if (UNLIKELY(totalLeadingZeros <= 128)) {
-          // needs_int256
+          // Needs int256
           int256_t aLarge = a;
           int256_t blarge = b;
           int256_t reslarge = aLarge * blarge;
           reslarge = reduceScaleBy(reslarge, deltaScale);
-
-          auto res =
-              velox::sparksql::DecimalUtil::convert<R>(reslarge, overflow);
+          auto res = DecimalUtil::convert<R>(reslarge, overflow);
           if (!overflow) {
             r = res;
           }
@@ -271,10 +265,10 @@ class Multiply {
             // ((2^64 - 1) * (2^63 - 1)) / 10, which is less than
             // BasicDecimal128::kMaxValue, so there cannot be any overflow.
             bool overflow;
-            velox::sparksql::DecimalUtil::divideWithRoundUp<R, R, R>(
+            DecimalUtil::divideWithRoundUp<R, R, R>(
                 r,
                 res,
-                R(DecimalUtil::kPowersOfTen[deltaScale]),
+                R(velox::DecimalUtil::kPowersOfTen[deltaScale]),
                 0,
                 0,
                 overflow);
@@ -313,11 +307,10 @@ class Multiply {
  private:
   inline static int256_t reduceScaleBy(int256_t in, int32_t reduceBy) {
     if (reduceBy == 0) {
-      // nothing to do.
       return in;
     }
 
-    int256_t divisor = DecimalUtil::kPowersOfTen[reduceBy];
+    int256_t divisor = velox::DecimalUtil::kPowersOfTen[reduceBy];
     DCHECK_GT(divisor, 0);
     DCHECK_EQ(divisor % 2, 0); // multiple of 10.
     auto result = in / divisor;
@@ -347,8 +340,7 @@ class Divide {
       uint8_t /* rPrecision */,
       uint8_t /* rScale */,
       bool overflow) {
-    velox::sparksql::DecimalUtil::divideWithRoundUp<R, A, B>(
-        r, a, b, aRescale, 0, overflow);
+    DecimalUtil::divideWithRoundUp<R, A, B>(r, a, b, aRescale, 0, overflow);
   }
 
   inline static uint8_t
@@ -419,9 +411,9 @@ std::shared_ptr<exec::VectorFunction> createDecimalFunction(
       aPrecision, aScale, bPrecision, bScale);
   uint8_t aRescale = Operation::computeRescaleFactor(aScale, bScale, rScale);
   uint8_t bRescale = Operation::computeRescaleFactor(bScale, aScale, rScale);
-  if (aType->kind() == TypeKind::SHORT_DECIMAL) {
-    if (bType->kind() == TypeKind::SHORT_DECIMAL) {
-      if (rPrecision > DecimalType<TypeKind::SHORT_DECIMAL>::kMaxPrecision) {
+  if (aType->isShortDecimal()) {
+    if (bType->isShortDecimal()) {
+      if (rPrecision > ShortDecimalType::kMaxPrecision) {
         return std::make_shared<DecimalBaseFunction<
             int128_t /*result*/,
             int64_t,
@@ -466,7 +458,7 @@ std::shared_ptr<exec::VectorFunction> createDecimalFunction(
           rScale);
     }
   } else {
-    if (bType->kind() == TypeKind::SHORT_DECIMAL) {
+    if (bType->isShortDecimal()) {
       return std::make_shared<DecimalBaseFunction<
           int128_t /*result*/,
           int128_t,

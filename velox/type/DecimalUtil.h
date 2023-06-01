@@ -85,13 +85,6 @@ class DecimalUtil {
         value);
   }
 
-  FOLLY_ALWAYS_INLINE static void valueInShortDecimalRange(int128_t value) {
-    VELOX_CHECK(
-        (value >= kShortDecimalMin && value <= kShortDecimalMax),
-        "Value '{}' is not in the range of Decimal Type",
-        value);
-  }
-
   /// Helper function to convert a decimal value to string.
   static std::string toString(const int128_t value, const TypePtr& type);
 
