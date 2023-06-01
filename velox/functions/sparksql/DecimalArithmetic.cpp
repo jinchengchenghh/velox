@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "velox/common/base/CheckedArithmetic.h"
 #include "velox/expression/DecodedArgs.h"
 #include "velox/expression/VectorFunction.h"
 #include "velox/functions/sparksql/DecimalUtil.h"
@@ -27,13 +28,23 @@ inline static std::pair<uint8_t, uint8_t> adjustPrecisionScale(
     const uint8_t rScale) {
   if (rPrecision <= 38) {
     return {rPrecision, rScale};
-  } else if (rScale < 0) {
-    return {38, rScale};
   } else {
     int32_t minScale = std::min(static_cast<int32_t>(rScale), 6);
     int32_t delta = rPrecision - 38;
     return {38, std::max(rScale - delta, minScale)};
   }
+}
+
+std::string getResultScale(std::string precision, std::string scale) {
+  auto res = fmt::format(
+      "({}) <= 38 ? ({}) : max(({}) - ({}) + 38, min(({}), 6))",
+      precision,
+      scale,
+      scale,
+      precision,
+      scale);
+  std::cout << res << std::endl;
+  return res;
 }
 
 template <
@@ -67,7 +78,7 @@ class DecimalBaseFunction : public exec::VectorFunction {
       const TypePtr& resultType, // cannot used in spark
       exec::EvalCtx& context,
       VectorPtr& result) const override {
-    auto rawResults = prepareResults(rows, context, result);
+    auto rawResults = prepareResults(rows, resultType, context, result);
     if (args[0]->isConstantEncoding() && args[1]->isFlatEncoding()) {
       // Fast path for (const, flat).
       auto constant = args[0]->asUnchecked<SimpleVector<A>>()->valueAt(0);
@@ -87,7 +98,7 @@ class DecimalBaseFunction : public exec::VectorFunction {
             bScale_,
             rPrecision_,
             rScale_,
-            &overflow);
+            overflow);
         if (overflow) {
           result->setNull(row, true);
         }
@@ -111,7 +122,7 @@ class DecimalBaseFunction : public exec::VectorFunction {
             bScale_,
             rPrecision_,
             rScale_,
-            &overflow);
+            overflow);
         if (overflow) {
           result->setNull(row, true);
         }
@@ -137,7 +148,7 @@ class DecimalBaseFunction : public exec::VectorFunction {
             bScale_,
             rPrecision_,
             rScale_,
-            &overflow);
+            overflow);
         if (overflow) {
           result->setNull(row, true);
         }
@@ -161,7 +172,7 @@ class DecimalBaseFunction : public exec::VectorFunction {
             bScale_,
             rPrecision_,
             rScale_,
-            &overflow);
+            overflow);
         if (overflow) {
           result->setNull(row, true);
         }
@@ -172,16 +183,10 @@ class DecimalBaseFunction : public exec::VectorFunction {
  private:
   R* prepareResults(
       const SelectivityVector& rows,
+      const TypePtr& resultType,
       exec::EvalCtx& context,
       VectorPtr& result) const {
-    // Here we can not use `resultType`, because this type derives from
-    // function signature, we cannot get complex compute for it.
-    rPrecision_ > DecimalType<TypeKind::SHORT_DECIMAL>::kMaxPrecision
-        ? context.ensureWritable(
-              rows, LONG_DECIMAL(rPrecision_, rScale_), result)
-        : context.ensureWritable(
-              rows, SHORT_DECIMAL(rPrecision_, rScale_), result);
-    // context.ensureWritable(rows, actualResultType, result);
+    context.ensureWritable(rows, resultType, result);
     result->clearNulls(rows);
     return result->asUnchecked<FlatVector<R>>()->mutableRawValues();
   }
@@ -199,6 +204,7 @@ class DecimalBaseFunction : public exec::VectorFunction {
 
 class Multiply {
  public:
+  // Derive from Arrow.
   template <typename R, typename A, typename B>
   inline static void apply(
       R& r,
@@ -212,52 +218,55 @@ class Multiply {
       uint8_t bScale,
       uint8_t rPrecision,
       uint8_t rScale,
-      bool* overflow) {
-    // Derive from Arrow
+      bool overflow) {
     if (rPrecision < 38) {
-      auto res = checkedMultiply<R>(
-          checkedMultiply(R(a), R(b), overflow),
-          R(DecimalUtil::kPowersOfTen[aRescale + bRescale]));
-      if (!*overflow) {
-        r = res;
+      R res;
+      overflow = __builtin_mul_overflow(a, b, &res);
+
+      if (!overflow) {
+        r = checkedMultiply<R>(
+            mulRes, R(DecimalUtil::kPowersOfTen[aRescale + bRescale]));
       }
-    } else if (a.unscaledValue() == 0 && b.unscaledValue() == 0) {
+    } else if (a == 0 && b == 0) {
       // Handle this separately to avoid divide-by-zero errors.
       r = R(0);
     } else {
       auto deltaScale = aScale + bScale - rScale;
       if (deltaScale == 0) {
         // No scale down
-        auto res = checkedMultiply(R(a), R(b), overflow);
-        if (!*overflow) {
+        R res;
+        overflow = __builtin_mul_overflow(a, b, &res);
+        if (!overflow) {
           r = res;
         }
       } else {
-        // scale down
+        // Scale down
         // It's possible that the intermediate value does not fit in 128-bits,
         // but the final value will (after scaling down).
         int32_t totalLeadingZeros =
-            a.countLeadingZeros() + b.countLeadingZeros();
+            bits::countLeadingZeros<A>(std::abs(a)) + bits::countLeadingZeros<B>(std::abs(b));
         // This check is quick, but conservative. In some cases it will
         // indicate that converting to 256 bits is necessary, when it's not
         // actually the case.
         if (UNLIKELY(totalLeadingZeros <= 128)) {
           // needs_int256
-          int256_t aLarge = a.unscaledValue();
-          int256_t blarge = b.unscaledValue();
+          int256_t aLarge = a;
+          int256_t blarge = b;
           int256_t reslarge = aLarge * blarge;
-          reslarge = ReduceScaleBy(reslarge, deltaScale);
+          reslarge = reduceScaleBy(reslarge, deltaScale);
 
-          auto res = R::convert(reslarge, overflow);
-          if (!*overflow) {
+          auto res =
+              velox::sparksql::DecimalUtil::convert<R>(reslarge, overflow);
+          if (!overflow) {
             r = res;
           }
         } else {
           if (LIKELY(deltaScale <= 38)) {
             // The largest value that result can have here is (2^64 - 1) * (2^63
             // - 1), which is greater than BasicDecimal128::kMaxValue.
-            auto res = R(a).multiply(R(b), overflow);
-            VELOX_DCHECK(!*overflow);
+            R res;
+            overflow = __builtin_mul_overflow(a, b, &res);
+            VELOX_DCHECK(!overflow);
             // Since deltaScale is greater than zero, result can now be at most
             // ((2^64 - 1) * (2^63 - 1)) / 10, which is less than
             // BasicDecimal128::kMaxValue, so there cannot be any overflow.
@@ -268,7 +277,7 @@ class Multiply {
                 R(DecimalUtil::kPowersOfTen[deltaScale]),
                 0,
                 0,
-                &overflow);
+                overflow);
           } else {
             // We are multiplying decimal(38, 38) by decimal(38, 38). The result
             // should be a
@@ -302,8 +311,7 @@ class Multiply {
   }
 
  private:
-  // derive from Arrow
-  inline static int256_t ReduceScaleBy(int256_t in, int32_t reduceBy) {
+  inline static int256_t reduceScaleBy(int256_t in, int32_t reduceBy) {
     if (reduceBy == 0) {
       // nothing to do.
       return in;
@@ -314,7 +322,7 @@ class Multiply {
     DCHECK_EQ(divisor % 2, 0); // multiple of 10.
     auto result = in / divisor;
     auto remainder = in % divisor;
-    // round up (same as BasicDecimal128::ReduceScaleBy)
+    // Round up (same as BasicDecimal128::reduceScaleBy)
     if (abs(remainder) >= (divisor >> 1)) {
       result += (in > 0 ? 1 : -1);
     }
@@ -324,6 +332,7 @@ class Multiply {
 
 class Divide {
  public:
+  // Derive from Arrow.
   template <typename R, typename A, typename B>
   inline static void apply(
       R& r,
@@ -337,7 +346,7 @@ class Divide {
       uint8_t /* bScale */,
       uint8_t /* rPrecision */,
       uint8_t /* rScale */,
-      bool* overflow) {
+      bool overflow) {
     velox::sparksql::DecimalUtil::divideWithRoundUp<R, A, B>(
         r, a, b, aRescale, 0, overflow);
   }
@@ -368,7 +377,9 @@ decimalMultiplySignature() {
               .integerVariable(
                   "r_precision", "min(38, a_precision + b_precision + 1)")
               .integerVariable(
-                  "r_scale", "a_scale") // not same with the result type
+                  "r_scale",
+                  getResultScale(
+                      "a_precision + b_precision + 1", "a_scale + b_scale"))
               .returnType("DECIMAL(r_precision, r_scale)")
               .argumentType("DECIMAL(a_precision, a_scale)")
               .argumentType("DECIMAL(b_precision, b_scale)")
@@ -387,14 +398,9 @@ std::vector<std::shared_ptr<exec::FunctionSignature>> decimalDivideSignature() {
               "min(38, a_precision - a_scale + b_scale + max(6, a_scale + b_precision + 1))")
           .integerVariable(
               "r_scale",
-              "min(37, max(6, a_scale + b_precision + 1))") // if precision is
-                                                            // more than 38,
-                                                            // scale has new
-                                                            // value, this
-                                                            // check constrait
-                                                            // is not same
-                                                            // with result
-                                                            // type
+              getResultScale(
+                  "a_precision - a_scale + b_scale + max(6, a_scale + b_precision + 1)",
+                  "max(6, a_scale + b_precision + 1)"))
           .returnType("DECIMAL(r_precision, r_scale)")
           .argumentType("DECIMAL(a_precision, a_scale)")
           .argumentType("DECIMAL(b_precision, b_scale)")
@@ -416,7 +422,6 @@ std::shared_ptr<exec::VectorFunction> createDecimalFunction(
   if (aType->kind() == TypeKind::SHORT_DECIMAL) {
     if (bType->kind() == TypeKind::SHORT_DECIMAL) {
       if (rPrecision > DecimalType<TypeKind::SHORT_DECIMAL>::kMaxPrecision) {
-        // Arguments are short decimals and result is a long decimal.
         return std::make_shared<DecimalBaseFunction<
             int128_t /*result*/,
             int64_t,
@@ -431,7 +436,6 @@ std::shared_ptr<exec::VectorFunction> createDecimalFunction(
             rPrecision,
             rScale);
       } else {
-        // Arguments are short decimals and result is a short decimal.
         return std::make_shared<DecimalBaseFunction<
             int64_t /*result*/,
             int64_t,
@@ -447,8 +451,6 @@ std::shared_ptr<exec::VectorFunction> createDecimalFunction(
             rScale);
       }
     } else {
-      // LHS is short decimal and rhs is a long decimal, result is long
-      // decimal.
       return std::make_shared<DecimalBaseFunction<
           int128_t /*result*/,
           int64_t,
@@ -465,8 +467,6 @@ std::shared_ptr<exec::VectorFunction> createDecimalFunction(
     }
   } else {
     if (bType->kind() == TypeKind::SHORT_DECIMAL) {
-      // LHS is long decimal and rhs is short decimal, result is a long
-      // decimal.
       return std::make_shared<DecimalBaseFunction<
           int128_t /*result*/,
           int128_t,
@@ -481,7 +481,6 @@ std::shared_ptr<exec::VectorFunction> createDecimalFunction(
           rPrecision,
           rScale);
     } else {
-      // Arguments and result are all long decimals.
       return std::make_shared<DecimalBaseFunction<
           int128_t /*result*/,
           int128_t,
