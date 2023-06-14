@@ -21,6 +21,8 @@
 #include "velox/expression/FunctionSignature.h"
 #include "velox/vector/FlatVector.h"
 
+#include <iostream>
+
 namespace facebook::velox::functions::sparksql::aggregates {
 
 namespace {
@@ -100,6 +102,9 @@ class BloomFilterAggAggregate : public exec::Aggregate {
       const std::vector<VectorPtr>& args,
       bool /*mayPushdown*/) override {
     VELOX_CHECK_EQ(args.size(), 1);
+    std::cout << "merge all group Inter" << args[0]->toString() << std::endl;
+    std::cout << "merge all group Inter" << args[0]->toString(0, 1)
+              << std::endl;
     decodedIntermediate_.decode(*args[0], rows);
     rows.applyToSelected([&](auto row) {
       if (UNLIKELY(decodedIntermediate_.isNullAt(row))) {
@@ -108,7 +113,12 @@ class BloomFilterAggAggregate : public exec::Aggregate {
       auto group = groups[row];
       auto tracker = trackRowSize(group);
       auto serialized = decodedIntermediate_.valueAt<StringView>(row);
+      if (serialized->size() == 0) {
+        std::cout << "serialized all group inter size is 0" << std::endl;
+        return;
+      }
       auto accumulator = value<BloomFilterAccumulator>(group);
+      std::cout << "merge all group Inter row number" << row << std::endl;
       accumulator->mergeWith(serialized);
     });
   }
@@ -120,7 +130,12 @@ class BloomFilterAggAggregate : public exec::Aggregate {
       bool /*mayPushdown*/) override {
     decodeArguments(rows, args);
     auto accumulator = value<BloomFilterAccumulator>(group);
-    VELOX_CHECK(!decodedRaw_.mayHaveNulls());
+    std::cout << "single raw argument " << args[0]->toString() << std::endl;
+    std::cout << "single raw argument " << args[0]->toString(0, 10) << std::endl;
+    std::cout << "single raw argument has null" << args[0]->mayHaveNulls()
+              << std::endl;
+
+    // VELOX_CHECK(!decodedRaw_.mayHaveNulls());
     if (decodedRaw_.isConstantMapping()) {
       // all values are same, just do for the first
       accumulator->init(capacity_);
@@ -128,6 +143,12 @@ class BloomFilterAggAggregate : public exec::Aggregate {
       return;
     }
     rows.applyToSelected([&](vector_size_t row) {
+      if (decodedRaw_.mayHaveNulls()) {
+        std::cout << "single group may have null" << std::endl;
+        if (decodedRaw_.isNullAt(row)) {
+          std::cout << "single group row is null " << row << std::endl;
+        }
+      }
       accumulator->init(capacity_);
       accumulator->insert(decodedRaw_.valueAt<int64_t>(row));
     });
@@ -139,6 +160,7 @@ class BloomFilterAggAggregate : public exec::Aggregate {
       const std::vector<VectorPtr>& args,
       bool /*mayPushdown*/) override {
     VELOX_CHECK_EQ(args.size(), 1);
+    std::cout << "merge single group" << args[0]->toString(0, 1) << std::endl;
     decodedIntermediate_.decode(*args[0], rows);
     auto tracker = trackRowSize(group);
     auto accumulator = value<BloomFilterAccumulator>(group);
@@ -147,6 +169,10 @@ class BloomFilterAggAggregate : public exec::Aggregate {
         return;
       }
       auto serialized = decodedIntermediate_.valueAt<StringView>(row);
+      if (serialized->size() == 0) {
+        std::cout << "serialized single inter size is 0" << std::endl;
+        return;
+      }
       accumulator->mergeWith(serialized);
     });
   }
