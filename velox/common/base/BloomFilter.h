@@ -23,6 +23,8 @@
 #include "velox/common/base/Exceptions.h"
 #include "velox/common/base/IOUtils.h"
 
+#include <iostream>
+
 namespace facebook::velox {
 // BloomFilter filter with groups of 64 bits, of which 4 are set. The hash
 // number has 4 6 bit fields that selct the bits in the word and the
@@ -64,6 +66,10 @@ class BloomFilter {
   void merge(const char* serialized) {
     common::InputByteStream stream(serialized);
     auto version = stream.read<int8_t>();
+    if (kBloomFilterV1 != version) {
+      std::cout << "version not match " << std::endl;
+      std::cout << "to serialized " << serialized << std::endl;
+    }
     VELOX_USER_CHECK_EQ(kBloomFilterV1, version);
     auto size = stream.read<int32_t>();
     bits_.resize(size);

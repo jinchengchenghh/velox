@@ -16,6 +16,7 @@
 #include "velox/common/base/BloomFilter.h"
 #include "velox/core/QueryConfig.h"
 #include "velox/functions/Macros.h"
+#include <iostream>
 
 namespace facebook::velox::functions::sparksql {
 
@@ -30,7 +31,9 @@ struct BloomFilterMightContainFunction {
       const arg_type<Varbinary>* serialized,
       const arg_type<int64_t>*) {
     if (serialized != nullptr) {
+      std::cout <<"start merge in might_contain"<< std::endl;
       bloomFilter_.merge(serialized->str().c_str());
+      std::cout <<"end merge in might_contain"<< std::endl;
     }
   }
 
