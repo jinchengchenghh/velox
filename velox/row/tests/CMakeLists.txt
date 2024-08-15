@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_executable(velox_row_test CompactRowTest.cpp UnsafeRowFuzzTest.cpp)
+add_executable(velox_row_test CompactRowTest.cpp UnsafeRowFuzzTest.cpp
+               RowVectorDeserializeTest.cpp)
 
 add_test(velox_row_test velox_row_test)
 

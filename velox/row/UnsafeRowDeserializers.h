@@ -855,6 +855,18 @@ struct UnsafeRowDeserializer {
       memory::MemoryPool* pool) {
     return convertToVectors(getBatchIteratorPtr(data, type), pool);
   }
+
+  /// Only supports deserialize Row with primitive type now.
+  /// @param memoryAddress the start memory address of the serailized UnsafeRow.
+  /// @param type the element type.
+  /// @param offsets offset of the row deserialized data. It's size should be
+  /// equal to the deserialized rows. First offset is 0.
+  /// @param pool the memory pool to allocate Vectors.
+  static VectorPtr deserialize(
+      const uint8_t* memoryAddress,
+      const RowTypePtr& type,
+      const std::vector<size_t>& offsets,
+      memory::MemoryPool* pool);
 };
 
 } // namespace facebook::velox::row
