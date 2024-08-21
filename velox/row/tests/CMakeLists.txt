@@ -13,7 +13,7 @@
 # limitations under the License.
 
 add_executable(velox_row_test CompactRowTest.cpp UnsafeRowFuzzTest.cpp
-               RowVectorDeserializeTest.cpp)
+                              RowVectorDeserializeTest.cpp)
 
 add_test(velox_row_test velox_row_test)
 
