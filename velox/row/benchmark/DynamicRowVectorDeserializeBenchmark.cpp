@@ -53,7 +53,7 @@ class BenchmarkHelper {
     opts.nullRatio = 0.1;
     opts.stringVariableLength = true;
     opts.stringLength = 20;
-    // Spark uses microseconds to store timestamp
+    // Spark uses microseconds to store timestamp.
     opts.timestampPrecision =
         VectorFuzzer::Options::TimestampPrecision::kMicroSeconds;
 

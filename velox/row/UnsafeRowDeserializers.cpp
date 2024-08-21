@@ -14,22 +14,17 @@
  * limitations under the License.
  */
 #include "velox/row/UnsafeRowDeserializers.h"
+// #include "velox/common/base/BitUtil.h"
 
 namespace facebook::velox::row {
 namespace {
-inline int64_t calculateBitSetWidthInBytes(int32_t numFields) {
-  return ((numFields + 63) / 64) * 8;
-}
 
 inline int64_t getFieldOffset(int64_t nullBitsetWidthInBytes, int32_t index) {
-  return nullBitsetWidthInBytes + 8L * index;
+  return nullBitsetWidthInBytes + UnsafeRow::kFieldWidthBytes * index;
 }
 
-inline bool isNull(const uint8_t* memoryAddress, int32_t index) {
-  int64_t mask = 1L << (index & 0x3f); // mod 64 and shift.
-  int64_t wordOffset = (index >> 6) * 8;
-  int64_t value = *((int64_t*)(memoryAddress + wordOffset));
-  return (value & mask) != 0;
+inline bool isNullAt(const uint8_t* memoryAddress, int32_t index) {
+  return bits::isBitSet(memoryAddress, index);
 }
 
 int32_t getTotalStringSize(
@@ -40,7 +35,7 @@ int32_t getTotalStringSize(
     const uint8_t* memoryAddress) {
   size_t size = 0;
   for (auto pos = 0; pos < numRows; pos++) {
-    if (isNull(memoryAddress + offsets[pos], columnIdx)) {
+    if (isNullAt(memoryAddress + offsets[pos], columnIdx)) {
       continue;
     }
 
@@ -64,12 +59,12 @@ VectorPtr createFlatVectorFast(
     const uint8_t* memoryAddress,
     memory::MemoryPool* pool) {
   using T = typename TypeTraits<Kind>::NativeType;
-  auto typeWidth = sizeof(T);
+  constexpr uint32_t typeWidth = sizeof(T);
   auto column = BaseVector::create<FlatVector<T>>(type, numRows, pool);
   auto rawValues = column->template mutableRawValues<uint8_t>();
-  auto shift = __builtin_ctz((uint32_t)typeWidth);
+  auto shift = __builtin_ctz(typeWidth);
   for (auto pos = 0; pos < numRows; pos++) {
-    if (!isNull(memoryAddress + offsets[pos], columnIdx)) {
+    if (!isNullAt(memoryAddress + offsets[pos], columnIdx)) {
       const uint8_t* srcptr = (memoryAddress + offsets[pos] + fieldOffset);
       uint8_t* destptr = rawValues + (pos << shift);
       memcpy(destptr, srcptr, typeWidth);
@@ -91,10 +86,10 @@ VectorPtr createFlatVectorFast<TypeKind::HUGEINT>(
     memory::MemoryPool* pool) {
   auto column = BaseVector::create<FlatVector<int128_t>>(type, numRows, pool);
   auto rawValues = column->mutableRawValues<uint8_t>();
-  auto typeWidth = sizeof(int128_t);
-  auto shift = __builtin_ctz((uint32_t)typeWidth);
+  constexpr uint32_t typeWidth = sizeof(int128_t);
+  auto shift = __builtin_ctz(typeWidth);
   for (auto pos = 0; pos < numRows; pos++) {
-    if (!isNull(memoryAddress + offsets[pos], columnIdx)) {
+    if (!isNullAt(memoryAddress + offsets[pos], columnIdx)) {
       uint8_t* destptr = rawValues + (pos << shift);
       int64_t offsetAndSize =
           *(int64_t*)(memoryAddress + offsets[pos] + fieldOffset);
@@ -129,7 +124,7 @@ VectorPtr createFlatVectorFast<TypeKind::BOOLEAN>(
   auto column = BaseVector::create<FlatVector<bool>>(type, numRows, pool);
   auto rawValues = column->mutableRawValues<uint64_t>();
   for (auto pos = 0; pos < numRows; pos++) {
-    if (!isNull(memoryAddress + offsets[pos], columnIdx)) {
+    if (!isNullAt(memoryAddress + offsets[pos], columnIdx)) {
       bool value = *(bool*)(memoryAddress + offsets[pos] + fieldOffset);
       bits::setBit(rawValues, pos, value);
     } else {
@@ -150,7 +145,7 @@ VectorPtr createFlatVectorFast<TypeKind::TIMESTAMP>(
     memory::MemoryPool* pool) {
   auto column = BaseVector::create<FlatVector<Timestamp>>(type, numRows, pool);
   for (auto pos = 0; pos < numRows; pos++) {
-    if (!isNull(memoryAddress + offsets[pos], columnIdx)) {
+    if (!isNullAt(memoryAddress + offsets[pos], columnIdx)) {
       int64_t value = *(int64_t*)(memoryAddress + offsets[pos] + fieldOffset);
       column->set(pos, Timestamp::fromMicros(value));
     } else {
@@ -160,7 +155,8 @@ VectorPtr createFlatVectorFast<TypeKind::TIMESTAMP>(
   return column;
 }
 
-VectorPtr createFlatVectorFastStringView(
+template <>
+VectorPtr createFlatVectorFast<TypeKind::VARCHAR>(
     const TypePtr& type,
     int32_t columnIdx,
     int32_t numRows,
@@ -173,7 +169,7 @@ VectorPtr createFlatVectorFastStringView(
       columnIdx, numRows, fieldOffset, offsets, memoryAddress);
   char* rawBuffer = column->getRawStringBufferWithSpace(size, true);
   for (auto pos = 0; pos < numRows; pos++) {
-    if (!isNull(memoryAddress + offsets[pos], columnIdx)) {
+    if (!isNullAt(memoryAddress + offsets[pos], columnIdx)) {
       int64_t offsetAndSize =
           *(int64_t*)(memoryAddress + offsets[pos] + fieldOffset);
       int32_t length = static_cast<int32_t>(offsetAndSize);
@@ -196,19 +192,6 @@ VectorPtr createFlatVectorFastStringView(
 }
 
 template <>
-VectorPtr createFlatVectorFast<TypeKind::VARCHAR>(
-    const TypePtr& type,
-    int32_t columnIdx,
-    int32_t numRows,
-    int64_t fieldOffset,
-    const std::vector<size_t>& offsets,
-    const uint8_t* memoryAddress,
-    memory::MemoryPool* pool) {
-  return createFlatVectorFastStringView(
-      type, columnIdx, numRows, fieldOffset, offsets, memoryAddress, pool);
-}
-
-template <>
 VectorPtr createFlatVectorFast<TypeKind::VARBINARY>(
     const TypePtr& type,
     int32_t columnIdx,
@@ -217,7 +200,7 @@ VectorPtr createFlatVectorFast<TypeKind::VARBINARY>(
     const std::vector<size_t>& offsets,
     const uint8_t* memoryAddress,
     memory::MemoryPool* pool) {
-  return createFlatVectorFastStringView(
+  return createFlatVectorFast<TypeKind::VARCHAR>(
       type, columnIdx, numRows, fieldOffset, offsets, memoryAddress, pool);
 }
 
@@ -240,7 +223,7 @@ VectorPtr UnsafeRowDeserializer::deserialize(
     const std::vector<size_t>& offsets,
     memory::MemoryPool* pool) {
   auto numFields = type->size();
-  int64_t nullBitsetWidthInBytes = calculateBitSetWidthInBytes(numFields);
+  int64_t nullBitsetWidthInBytes = UnsafeRow::getNullLength(numFields);
   std::vector<VectorPtr> columns(numFields);
   const vector_size_t numRows = offsets.size();
 

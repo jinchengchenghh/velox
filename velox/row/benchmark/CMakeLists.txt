@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_executable(velox_row_deserialize_benchmark RowVectorDeserializeBenchmark.cpp)
+add_executable(velox_row_deserialize_benchmark DynamicRowVectorDeserializeBenchmark.cpp)
 target_link_libraries(
   velox_row_deserialize_benchmark
   PRIVATE
@@ -21,3 +21,4 @@ target_link_libraries(
     velox_vector_fuzzer
     Folly::folly
     ${FOLLY_BENCHMARK})
+    
