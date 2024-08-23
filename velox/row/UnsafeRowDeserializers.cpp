@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 #include "velox/row/UnsafeRowDeserializers.h"
-// #include "velox/common/base/BitUtil.h"
 
 namespace facebook::velox::row {
 namespace {

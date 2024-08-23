@@ -857,7 +857,7 @@ struct UnsafeRowDeserializer {
   }
 
   /// Only supports deserialize Row with primitive type now.
-  /// @param memoryAddress the start memory address of the serailized UnsafeRow.
+  /// @param memoryAddress the start memory address of the serialized UnsafeRow.
   /// @param type the element type.
   /// @param offsets offset of the row deserialized data. It's size should be
   /// equal to the deserialized rows. First offset is 0.
