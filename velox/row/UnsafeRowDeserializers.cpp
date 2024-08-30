@@ -27,8 +27,8 @@ inline bool isNullAt(const uint8_t* memoryAddress, int32_t index) {
 }
 
 int32_t getTotalStringSize(
-    int32_t columnIdx,
-    int32_t numRows,
+    uint32_t columnIdx,
+    vector_size_t numRows,
     int64_t fieldOffset,
     const std::vector<size_t>& offsets,
     const uint8_t* memoryAddress) {
@@ -51,8 +51,8 @@ int32_t getTotalStringSize(
 template <TypeKind Kind>
 VectorPtr createFlatVectorFast(
     const TypePtr& type,
-    int32_t columnIdx,
-    int32_t numRows,
+    uint32_t columnIdx,
+    vector_size_t numRows,
     int64_t fieldOffset,
     const std::vector<size_t>& offsets,
     const uint8_t* memoryAddress,
@@ -64,9 +64,9 @@ VectorPtr createFlatVectorFast(
   auto shift = __builtin_ctz(typeWidth);
   for (auto pos = 0; pos < numRows; pos++) {
     if (!isNullAt(memoryAddress + offsets[pos], columnIdx)) {
-      const uint8_t* srcptr = (memoryAddress + offsets[pos] + fieldOffset);
-      uint8_t* destptr = rawValues + (pos << shift);
-      memcpy(destptr, srcptr, typeWidth);
+      const uint8_t* srcPtr = (memoryAddress + offsets[pos] + fieldOffset);
+      uint8_t* destPtr = rawValues + (pos << shift);
+      memcpy(destPtr, srcPtr, typeWidth);
     } else {
       column->setNull(pos, true);
     }
@@ -77,8 +77,8 @@ VectorPtr createFlatVectorFast(
 template <>
 VectorPtr createFlatVectorFast<TypeKind::HUGEINT>(
     const TypePtr& type,
-    int32_t columnIdx,
-    int32_t numRows,
+    uint32_t columnIdx,
+    vector_size_t numRows,
     int64_t fieldOffset,
     const std::vector<size_t>& offsets,
     const uint8_t* memoryAddress,
@@ -93,17 +93,12 @@ VectorPtr createFlatVectorFast<TypeKind::HUGEINT>(
       int64_t offsetAndSize =
           *(int64_t*)(memoryAddress + offsets[pos] + fieldOffset);
       int32_t length = static_cast<int32_t>(offsetAndSize);
-      int32_t wordoffset = static_cast<int32_t>(offsetAndSize >> 32);
-      uint8_t bytesValue[length];
-      memcpy(bytesValue, memoryAddress + offsets[pos] + wordoffset, length);
-      uint8_t bytesValue2[16]{};
-      for (int k = length - 1; k >= 0; k--) {
-        bytesValue2[length - 1 - k] = bytesValue[k];
-      }
-      if (int8_t(bytesValue[0]) < 0) {
-        memset(bytesValue2 + length, 255, 16 - length);
-      }
-      memcpy(destptr, bytesValue2, typeWidth);
+      int32_t wordOffset = static_cast<int32_t>(offsetAndSize >> 32);
+      int128_t value =
+          UnsafeRowPrimitiveBatchDeserializer::deserializeLongDecimal(
+              std::string_view(reinterpret_cast<const char*>(
+                  memoryAddress + offsets[pos] + wordOffset, length)));
+      memcpy(destptr, &value, typeWidth);
     } else {
       column->setNull(pos, true);
     }
@@ -114,8 +109,8 @@ VectorPtr createFlatVectorFast<TypeKind::HUGEINT>(
 template <>
 VectorPtr createFlatVectorFast<TypeKind::BOOLEAN>(
     const TypePtr& type,
-    int32_t columnIdx,
-    int32_t numRows,
+    uint32_t columnIdx,
+    vector_size_t numRows,
     int64_t fieldOffset,
     const std::vector<size_t>& offsets,
     const uint8_t* memoryAddress,
@@ -136,8 +131,8 @@ VectorPtr createFlatVectorFast<TypeKind::BOOLEAN>(
 template <>
 VectorPtr createFlatVectorFast<TypeKind::TIMESTAMP>(
     const TypePtr& type,
-    int32_t columnIdx,
-    int32_t numRows,
+    uint32_t columnIdx,
+    vector_size_t numRows,
     int64_t fieldOffset,
     const std::vector<size_t>& offsets,
     const uint8_t* memoryAddress,
@@ -157,8 +152,8 @@ VectorPtr createFlatVectorFast<TypeKind::TIMESTAMP>(
 template <>
 VectorPtr createFlatVectorFast<TypeKind::VARCHAR>(
     const TypePtr& type,
-    int32_t columnIdx,
-    int32_t numRows,
+    uint32_t columnIdx,
+    vector_size_t numRows,
     int64_t fieldOffset,
     const std::vector<size_t>& offsets,
     const uint8_t* memoryAddress,
@@ -172,8 +167,8 @@ VectorPtr createFlatVectorFast<TypeKind::VARCHAR>(
       int64_t offsetAndSize =
           *(int64_t*)(memoryAddress + offsets[pos] + fieldOffset);
       int32_t length = static_cast<int32_t>(offsetAndSize);
-      int32_t wordoffset = static_cast<int32_t>(offsetAndSize >> 32);
-      auto valueSrcPtr = memoryAddress + offsets[pos] + wordoffset;
+      int32_t wordOffset = static_cast<int32_t>(offsetAndSize >> 32);
+      auto valueSrcPtr = memoryAddress + offsets[pos] + wordOffset;
       if (StringView::isInline(length)) {
         column->set(
             pos,
@@ -193,8 +188,8 @@ VectorPtr createFlatVectorFast<TypeKind::VARCHAR>(
 template <>
 VectorPtr createFlatVectorFast<TypeKind::VARBINARY>(
     const TypePtr& type,
-    int32_t columnIdx,
-    int32_t numRows,
+    uint32_t columnIdx,
+    vector_size_t numRows,
     int64_t fieldOffset,
     const std::vector<size_t>& offsets,
     const uint8_t* memoryAddress,
@@ -203,7 +198,9 @@ VectorPtr createFlatVectorFast<TypeKind::VARBINARY>(
       type, columnIdx, numRows, fieldOffset, offsets, memoryAddress, pool);
 }
 
-VectorPtr createUnknownFlatVector(int32_t numRows, memory::MemoryPool* pool) {
+VectorPtr createUnknownFlatVector(
+    vector_size_t numRows,
+    memory::MemoryPool* pool) {
   auto nulls = allocateNulls(numRows, pool, bits::kNull);
   return std::make_shared<FlatVector<UnknownValue>>(
       pool,
@@ -221,7 +218,7 @@ VectorPtr UnsafeRowDeserializer::deserialize(
     const RowTypePtr& type,
     const std::vector<size_t>& offsets,
     memory::MemoryPool* pool) {
-  auto numFields = type->size();
+  const auto numFields = type->size();
   int64_t nullBitsetWidthInBytes = UnsafeRow::getNullLength(numFields);
   std::vector<VectorPtr> columns(numFields);
   const vector_size_t numRows = offsets.size();
