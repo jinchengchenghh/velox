@@ -210,10 +210,23 @@ VectorPtr createUnknownFlatVector(
       nullptr, // values
       std::vector<BufferPtr>{}); // stringBuffers
 }
-} // namespace
 
-// static
-VectorPtr UnsafeRowDeserializer::deserialize(
+bool fastSupported(const RowTypePtr& type) {
+  for (auto i = 0; i < type->size(); i++) {
+    auto kind = type->childAt(i)->kind();
+    switch (kind) {
+      case TypeKind::ARRAY:
+      case TypeKind::MAP:
+      case TypeKind::ROW:
+        return false;
+      default:
+        break;
+    }
+  }
+  return true;
+}
+
+VectorPtr deserializeFast(
     const uint8_t* memoryAddress,
     const RowTypePtr& type,
     const std::vector<size_t>& offsets,
@@ -244,5 +257,27 @@ VectorPtr UnsafeRowDeserializer::deserialize(
 
   return std::make_shared<RowVector>(
       pool, type, BufferPtr(nullptr), numRows, std::move(columns));
+}
+} // namespace
+
+// static
+VectorPtr UnsafeRowDeserializer::deserialize(
+    const uint8_t* memoryAddress,
+    const RowTypePtr& type,
+    const std::vector<size_t>& offsets,
+    memory::MemoryPool* pool) {
+  if (fastSupported(type)) {
+    return deserializeFast(memoryAddress, type, offsets, pool);
+  } else {
+    std::vector<std::optional<std::string_view>> data;
+    const vector_size_t numRows = offsets.size();
+    for (auto i = 0; i < numRows; i++) {
+      auto length =
+          (i == numRows - 1 ? offsets[i] : offsets[i + 1] - offsets[i]);
+      data.emplace_back(std::string_view(
+          reinterpret_cast<const char*>(memoryAddress + offsets[i]), length));
+    }
+    return deserialize(data, type, pool);
+  }
 }
 } // namespace facebook::velox::row
