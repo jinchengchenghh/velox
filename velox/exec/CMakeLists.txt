@@ -65,6 +65,7 @@ velox_add_library(
   RowContainer.cpp
   RowNumber.cpp
   SortBuffer.cpp
+  SortBufferFast.cpp
   SortedAggregations.cpp
   SortWindowBuild.cpp
   Spill.cpp

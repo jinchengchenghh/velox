@@ -1,3 +1,4 @@
+
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
@@ -21,7 +22,9 @@
 #include "velox/exec/OperatorUtils.h"
 #include "velox/exec/PrefixSort.h"
 #include "velox/exec/RowContainer.h"
+#include "velox/exec/SortBuffer.h"
 #include "velox/exec/Spill.h"
+#include "velox/row/UnsafeRowFast.h"
 #include "velox/vector/BaseVector.h"
 
 namespace facebook::velox::exec {
@@ -29,9 +32,9 @@ namespace facebook::velox::exec {
 /// A utility class to accumulate data inside and output the sorted result.
 /// Spilling would be triggered if spilling is enabled and memory usage exceeds
 /// limit.
-class SortBuffer {
+class SortBufferFast : public SortBuffer {
  public:
-  SortBuffer(
+  SortBufferFast(
       const RowTypePtr& input,
       const std::vector<column_index_t>& sortColumnIndices,
       const std::vector<CompareFlags>& sortCompareFlags,
@@ -41,48 +44,25 @@ class SortBuffer {
       const common::SpillConfig* spillConfig = nullptr,
       folly::Synchronized<velox::common::SpillStats>* spillStats = nullptr);
 
-  ~sortBuffer() = default;
-
-  virtual void addInput(const VectorPtr& input);
+  void addInput(const VectorPtr& input) override;
 
   /// Indicates no more input and triggers either of:
   ///  - In-memory sorting on rows stored in 'data_' if spilling is not enabled.
   ///  - Finish spilling and setup the sort merge reader for the un-spilling
   ///  processing for the output.
-  virtual void noMoreInput();
+  void noMoreInput() override;
 
   /// Returns the sorted output rows in batch.
-  virtual RowVectorPtr getOutput(uint32_t maxOutputRows);
-
-  /// Indicates if this sort buffer can spill or not.
-  bool canSpill() const {
-    return spillConfig_ != nullptr;
-  }
-
-  /// Invoked to spill all the rows from 'data_'.
-  void spill();
-
-  memory::MemoryPool* pool() const {
-    return pool_;
-  }
-
-  std::optional<uint64_t> estimateOutputRowSize() const;
+  RowVectorPtr getOutput(uint32_t maxOutputRows) override;
 
  private:
   // Ensures there is sufficient memory reserved to process 'input'.
   void ensureInputFits(const VectorPtr& input);
   void updateEstimatedOutputRowSize();
-  // Invoked to initialize or reset the reusable output buffer to get output.
-  void prepareOutput(uint32_t maxOutputRows);
-  void getOutputWithoutSpill();
-  void getOutputWithSpill();
-  // Spill during input stage.
-  void spillInput();
-  // Spill during output stage.
-  void spillOutput();
-  // Finish spill, and we shouldn't get any rows from non-spilled partition as
-  // there is only one hash partition for SortBuffer.
-  void finishSpill();
+  void SortBufferFast::serializeMetadata(
+      const VectorPtr& input,
+    const std::vector<size_t> offsets,
+    const char* startMemoryAddress);
 
   const RowTypePtr input_;
   const std::vector<CompareFlags> sortCompareFlags_;
@@ -93,8 +73,6 @@ class SortBuffer {
   tsan_atomic<bool>* const nonReclaimableSection_;
   // Configuration settings for prefix-sort.
   const common::PrefixSortConfig prefixSortConfig_;
-  const common::SpillConfig* const spillConfig_;
-  folly::Synchronized<common::SpillStats>* const spillStats_;
 
   // The column projection map between 'input_' and 'spillerStoreType_' as sort
   // buffer stores the sort columns first in 'data_'.
@@ -126,6 +104,21 @@ class SortBuffer {
   std::optional<uint64_t> estimatedOutputRowSize_{};
   // The number of rows that has been returned.
   size_t numOutputRows_{0};
+
+  // Extra metadata size of one row, prefix | buffer-idx | row-number.
+  size_t metadataSize_;
+  const std::vector<column_index_t> sortColumnIndices_;
+  std::vector<TypeKind> sortColumnTypeKind_;
+  std::vector<prefixsort::PrefixSortEncoder> encoders_;
+  /// Offsets of normalized keys, used to find write locations when
+  /// extracting columns
+  std::vector<uint32_t> prefixOffsets_;
+  uint32_t prefixLength_;
+  std::vector<DecodedVector> decodedVectors_;
+
+  const std::unique_ptr<row::UnsafeRowFast> fast_;
+  std::vector<BufferPtr> buffers_;
+  std::vector<std::vector<size_t>> offsets_;
 };
 
 } // namespace facebook::velox::exec
