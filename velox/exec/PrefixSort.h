@@ -51,6 +51,7 @@ FOLLY_ALWAYS_INLINE void stdSort(
 struct PrefixSortLayout {
   /// Number of bytes to store a prefix, it equals to:
   /// normalizedKeySize_ + 8 (non-normalized-ptr) + 8(row address).
+  /// Is normalizedKeySize_
   const uint64_t entrySize;
 
   /// If a sort key supports normalization and can be added to the prefix
@@ -84,9 +85,10 @@ struct PrefixSortLayout {
   const int32_t padding;
 
   static PrefixSortLayout makeSortLayout(
-      const std::vector<TypePtr>& types,
+      const std::vector<TypePtr> types,
       const std::vector<CompareFlags>& compareFlags,
-      uint32_t maxNormalizedKeySize);
+      uint32_t maxNormalizedKeySize,
+      std::optional<uint32_t> extraEnrySize = std::nullopt);
 };
 
 class PrefixSort {
@@ -143,10 +145,15 @@ class PrefixSort {
     prefixSort.sortInternal(rows);
   }
 
+  static int compareAllNormalizedKeys(
+      char* left,
+      char* right,
+      uint32_t normalizedBufferSize);
+
+  static void bitsSwapByWord(uint64_t* address, int32_t bytes);
+
  private:
   void sortInternal(std::vector<char*>& rows);
-
-  int compareAllNormalizedKeys(char* left, char* right);
 
   int comparePartNormalizedKeys(char* left, char* right);
 

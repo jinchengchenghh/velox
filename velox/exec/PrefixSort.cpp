@@ -84,14 +84,6 @@ FOLLY_ALWAYS_INLINE int32_t alignmentPadding(int32_t size, int32_t alignment) {
   return extra == 0 ? 0 : alignment - extra;
 }
 
-FOLLY_ALWAYS_INLINE void bitsSwapByWord(uint64_t* address, int32_t bytes) {
-  while (bytes != 0) {
-    *address = __builtin_bswap64(*address);
-    ++address;
-    bytes -= kAlignment;
-  }
-}
-
 FOLLY_ALWAYS_INLINE int
 compareByWord(uint64_t* left, uint64_t* right, int32_t bytes) {
   while (bytes != 0) {
@@ -113,9 +105,10 @@ compareByWord(uint64_t* left, uint64_t* right, int32_t bytes) {
 } // namespace
 
 PrefixSortLayout PrefixSortLayout::makeSortLayout(
-    const std::vector<TypePtr>& types,
+    const std::vector<TypePtr> types,
     const std::vector<CompareFlags>& compareFlags,
-    uint32_t maxNormalizedKeySize) {
+    uint32_t maxNormalizedKeySize,
+    std::optional<uint32_t> extraEntrySize) {
   uint32_t normalizedKeySize = 0;
   uint32_t numNormalizedKeys = 0;
   const uint32_t numKeys = types.size();
@@ -142,8 +135,11 @@ PrefixSortLayout PrefixSortLayout::makeSortLayout(
   }
   auto padding = alignmentPadding(normalizedKeySize, kAlignment);
   normalizedKeySize += padding;
+  auto entrySize = extraEntrySize.has_value()
+      ? normalizedKeySize + extraEntrySize.value()
+      : normalizedKeySize + sizeof(char*);
   return PrefixSortLayout{
-      normalizedKeySize + sizeof(char*),
+      entrySize,
       normalizedKeySize,
       numNormalizedKeys,
       numKeys,
@@ -157,13 +153,14 @@ PrefixSortLayout PrefixSortLayout::makeSortLayout(
 
 FOLLY_ALWAYS_INLINE int PrefixSort::compareAllNormalizedKeys(
     char* left,
-    char* right) {
+    char* right,
+    uint32_t normalizedBufferSize) {
   return compareByWord(
-      (uint64_t*)left, (uint64_t*)right, sortLayout_.normalizedBufferSize);
+      (uint64_t*)left, (uint64_t*)right, normalizedBufferSize);
 }
 
 int PrefixSort::comparePartNormalizedKeys(char* left, char* right) {
-  int result = compareAllNormalizedKeys(left, right);
+  int result = compareAllNormalizedKeys(left, right, sortLayout_.normalizedBufferSize);
   if (result != 0) {
     return result;
   }
@@ -211,6 +208,14 @@ void PrefixSort::extractRowToPrefix(char* row, char* prefix) {
   getAddressFromPrefix(prefix) = row;
 }
 
+void PrefixSort::bitsSwapByWord(uint64_t* address, int32_t bytes) {
+  while (bytes != 0) {
+    *address = __builtin_bswap64(*address);
+    ++address;
+    bytes -= kAlignment;
+  }
+}
+
 void PrefixSort::sortInternal(std::vector<char*>& rows) {
   const auto numRows = rows.size();
   const auto entrySize = sortLayout_.entrySize;
@@ -240,7 +245,7 @@ void PrefixSort::sortInternal(std::vector<char*>& rows) {
       });
     } else {
       sortRunner.quickSort(start, end, [&](char* a, char* b) {
-        return compareAllNormalizedKeys(a, b);
+        return compareAllNormalizedKeys(a, b, sortLayout_.normalizedBufferSize);
       });
     }
   }

@@ -41,7 +41,7 @@ class SortBuffer {
       const common::SpillConfig* spillConfig = nullptr,
       folly::Synchronized<velox::common::SpillStats>* spillStats = nullptr);
 
-  ~sortBuffer() = default;
+  virtual ~SortBuffer() = default;
 
   virtual void addInput(const VectorPtr& input);
 
@@ -68,10 +68,11 @@ class SortBuffer {
 
   std::optional<uint64_t> estimateOutputRowSize() const;
 
- private:
+ protected:
+  virtual void init(const std::vector<column_index_t>& sortColumnIndices);
   // Ensures there is sufficient memory reserved to process 'input'.
   void ensureInputFits(const VectorPtr& input);
-  void updateEstimatedOutputRowSize();
+  virtual void updateEstimatedOutputRowSize();
   // Invoked to initialize or reset the reusable output buffer to get output.
   void prepareOutput(uint32_t maxOutputRows);
   void getOutputWithoutSpill();

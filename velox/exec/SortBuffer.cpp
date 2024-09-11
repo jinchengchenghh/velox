@@ -39,15 +39,18 @@ SortBuffer::SortBuffer(
   VELOX_CHECK_GT(sortCompareFlags_.size(), 0);
   VELOX_CHECK_EQ(sortColumnIndices.size(), sortCompareFlags_.size());
   VELOX_CHECK_NOT_NULL(nonReclaimableSection_);
+  init(sortColumnIndices);
+}
 
+void SortBuffer::init(const std::vector<column_index_t>& sortColumnIndices) {
   std::vector<TypePtr> sortedColumnTypes;
   std::vector<TypePtr> nonSortedColumnTypes;
   std::vector<std::string> sortedSpillColumnNames;
   std::vector<TypePtr> sortedSpillColumnTypes;
-  sortedColumnTypes.reserve(sortColumnIndices.size());
-  nonSortedColumnTypes.reserve(input->size() - sortColumnIndices.size());
-  sortedSpillColumnNames.reserve(input->size());
-  sortedSpillColumnTypes.reserve(input->size());
+  sortedColumnTypes.reserve(sortCompareFlags_.size());
+  nonSortedColumnTypes.reserve(input_->size() - sortColumnIndices.size());
+  sortedSpillColumnNames.reserve(input_->size());
+  sortedSpillColumnTypes.reserve(input_->size());
   std::unordered_set<column_index_t> sortedChannelSet;
   // Sorted key columns.
   for (column_index_t i = 0; i < sortColumnIndices.size(); ++i) {
@@ -55,7 +58,8 @@ SortBuffer::SortBuffer(
     sortedColumnTypes.emplace_back(input_->childAt(sortColumnIndices.at(i)));
     sortedSpillColumnTypes.emplace_back(
         input_->childAt(sortColumnIndices.at(i)));
-    sortedSpillColumnNames.emplace_back(input->nameOf(sortColumnIndices.at(i)));
+    sortedSpillColumnNames.emplace_back(
+        input_->nameOf(sortColumnIndices.at(i)));
     sortedChannelSet.emplace(sortColumnIndices.at(i));
   }
   // Non-sorted key columns.
@@ -68,7 +72,7 @@ SortBuffer::SortBuffer(
     columnMap_.emplace_back(nonSortedIndex++, i);
     nonSortedColumnTypes.emplace_back(input_->childAt(i));
     sortedSpillColumnTypes.emplace_back(input_->childAt(i));
-    sortedSpillColumnNames.emplace_back(input->nameOf(i));
+    sortedSpillColumnNames.emplace_back(input_->nameOf(i));
   }
 
   data_ = std::make_unique<RowContainer>(
