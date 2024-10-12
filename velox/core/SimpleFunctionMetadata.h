@@ -394,7 +394,9 @@ class ISimpleFunctionMetadata {
   virtual bool physicalSignatureEquals(
       const ISimpleFunctionMetadata& other) const = 0;
   virtual std::string helpMessage(const std::string& name) const = 0;
-  virtual std::string toString(const std::string& name) const = 0;
+  /// Returns string of all the fields such as logical signature,
+  /// physical signature and priority.
+  virtual std::string toDebugString() const = 0;
 };
 
 template <typename T, typename = int32_t>
@@ -537,40 +539,19 @@ class SimpleFunctionMetadata : public ISimpleFunctionMetadata {
     return s;
   }
 
-  std::string toString(const std::string& name) const final {
-    std::stringstream sig;
-    bool first = true;
-    for (auto& arg : signature_->argumentTypes()) {
-      if (!first) {
-        sig << ", ";
-      }
-      first = false;
-      sig << boost::algorithm::to_upper_copy(arg.toString());
-    }
+  std::string toDebugString() const final {
+    auto logicalArguments =
+        argumentToString<exec::TypeSignature>(signature_->argumentTypes());
 
-    if (isVariadic()) {
-      sig << "...";
-    }
+    auto physicalArguments = argumentToString<TypePtr>(argPhysicalTypes_);
 
-    std::stringstream ss;
-    first = true;
-    for (const auto& arg : argPhysicalTypes_) {
-      if (!first) {
-        ss << ", ";
-      }
-      first = false;
-      ss << arg->toString();
-    }
-    if (isVariadic()) {
-      ss << "...";
-    }
     return fmt::format(
-        "FunctionName: {}\nSignature argument types:\n{}\nPhysical argument types:\n{}"
-        "\nPhysical result types:\n{}\nPriority:{}\nDefaultNullBehavior:{}",
-        name,
-        sig.str(),
-        ss.str(),
-        resultPhysicalType_,
+        "Logical signature: ({}) -> {}\nPhysical signature: ({}) -> {}\n"
+        "Priority: {}\nDefaultNullBehavior: {}",
+        logicalArguments,
+        signature_->returnType().toString(),
+        physicalArguments,
+        resultPhysicalType_->toString(),
         priority_,
         defaultNullBehavior_);
   }
@@ -646,6 +627,27 @@ class SimpleFunctionMetadata : public ISimpleFunctionMetadata {
       builder.variableArity();
     }
     signature_ = builder.build();
+  }
+
+  template <typename T>
+  static std::string argumentToString(const std::vector<T>& arguments) {
+    std::stringstream ss;
+    bool first = true;
+    for (const auto& arg : arguments) {
+      if (!first) {
+        ss << ", ";
+      }
+      first = false;
+      if constexpr (std::is_same_v<T, exec::TypeSignature>) {
+        ss << arg.toString();
+      } else {
+        ss << arg->toString();
+      }
+    }
+    if (isVariadic()) {
+      ss << "...";
+    }
+    return ss.str();
   }
 
   const bool defaultNullBehavior_;
@@ -878,9 +880,9 @@ class UDFHolder {
   // null, without calling the function implementation.
   static constexpr bool is_default_null_behavior = !udf_has_callNullable;
 
-  // If any of the the provided "call" flavors can produce null (in case any of
-  // them return bool). This is only false if all the call methods provided for
-  // a function return void.
+  // If any of the the provided "call" flavors can produce null (in case any
+  // of them return bool). This is only false if all the call methods provided
+  // for a function return void.
   static constexpr bool can_produce_null_output = udf_has_call_return_bool |
       udf_has_callNullable_return_bool | udf_has_callNullFree_return_bool |
       udf_has_callAscii_return_bool;
