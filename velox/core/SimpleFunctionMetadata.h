@@ -394,9 +394,46 @@ class ISimpleFunctionMetadata {
   virtual bool physicalSignatureEquals(
       const ISimpleFunctionMetadata& other) const = 0;
   virtual std::string helpMessage(const std::string& name) const = 0;
+
   /// Returns string of all the fields such as logical signature,
   /// physical signature and priority.
-  virtual std::string toDebugString() const = 0;
+  std::string toDebugString() const {
+    auto logicalArguments =
+        argumentToString<exec::TypeSignature>(signature()->argumentTypes());
+    auto physicalArguments = argumentToString<TypePtr>(argPhysicalTypes());
+
+    return fmt::format(
+        "Logical signature: ({}) -> {}\nPhysical signature: ({}) -> {}\n"
+        "Priority: {}\nDefaultNullBehavior: {}",
+        logicalArguments,
+        signature()->returnType().toString(),
+        physicalArguments,
+        resultPhysicalType()->toString(),
+        priority(),
+        defaultNullBehavior());
+  }
+
+ private:
+  template <typename T>
+  static std::string argumentToString(const std::vector<T>& arguments) {
+    std::stringstream ss;
+    bool first = true;
+    for (const auto& arg : arguments) {
+      if (!first) {
+        ss << ", ";
+      }
+      first = false;
+      if constexpr (std::is_same_v<T, exec::TypeSignature>) {
+        ss << arg.toString();
+      } else {
+        ss << arg->toString();
+      }
+    }
+    if (isVariadic()) {
+      ss << "...";
+    }
+    return ss.str();
+  }
 };
 
 template <typename T, typename = int32_t>
@@ -539,23 +576,6 @@ class SimpleFunctionMetadata : public ISimpleFunctionMetadata {
     return s;
   }
 
-  std::string toDebugString() const final {
-    auto logicalArguments =
-        argumentToString<exec::TypeSignature>(signature_->argumentTypes());
-
-    auto physicalArguments = argumentToString<TypePtr>(argPhysicalTypes_);
-
-    return fmt::format(
-        "Logical signature: ({}) -> {}\nPhysical signature: ({}) -> {}\n"
-        "Priority: {}\nDefaultNullBehavior: {}",
-        logicalArguments,
-        signature_->returnType().toString(),
-        physicalArguments,
-        resultPhysicalType_->toString(),
-        priority_,
-        defaultNullBehavior_);
-  }
-
  private:
   struct SignatureTypesAnalysisResults {
     std::vector<std::string> argsTypes;
@@ -627,27 +647,6 @@ class SimpleFunctionMetadata : public ISimpleFunctionMetadata {
       builder.variableArity();
     }
     signature_ = builder.build();
-  }
-
-  template <typename T>
-  static std::string argumentToString(const std::vector<T>& arguments) {
-    std::stringstream ss;
-    bool first = true;
-    for (const auto& arg : arguments) {
-      if (!first) {
-        ss << ", ";
-      }
-      first = false;
-      if constexpr (std::is_same_v<T, exec::TypeSignature>) {
-        ss << arg.toString();
-      } else {
-        ss << arg->toString();
-      }
-    }
-    if (isVariadic()) {
-      ss << "...";
-    }
-    return ss.str();
   }
 
   const bool defaultNullBehavior_;
