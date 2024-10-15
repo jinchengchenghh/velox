@@ -415,7 +415,7 @@ class ISimpleFunctionMetadata {
 
  private:
   template <typename T>
-  static std::string argumentToString(const std::vector<T>& arguments) {
+  std::string argumentToString(const std::vector<T>& arguments) const {
     std::stringstream ss;
     bool first = true;
     for (const auto& arg : arguments) {
@@ -429,7 +429,7 @@ class ISimpleFunctionMetadata {
         ss << arg->toString();
       }
     }
-    if (isVariadic()) {
+    if (signature()->variableArity()) {
       ss << "...";
     }
     return ss.str();
