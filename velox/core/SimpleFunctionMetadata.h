@@ -519,24 +519,10 @@ class SimpleFunctionMetadata : public ISimpleFunctionMetadata {
   }
 
   std::string helpMessage(const std::string& name) const final {
-    // return fmt::format("{}({})", name, signature_->toString());
-    std::string s{name};
-    s.append("(");
-    bool first = true;
-    for (auto& arg : signature_->argumentTypes()) {
-      if (!first) {
-        s.append(", ");
-      }
-      first = false;
-      s.append(boost::algorithm::to_upper_copy(arg.toString()));
-    }
-
-    if (isVariadic()) {
-      s.append("...");
-    }
-
-    s.append(")");
-    return s;
+    return fmt::format(
+        "{} ({})",
+        name,
+        argumentToString<exec::TypeSignature>(signature_->argumentTypes()));
   }
 
   std::string toDebugString() const final {
