@@ -398,9 +398,10 @@ class ISimpleFunctionMetadata {
   /// Returns string of all the fields such as logical signature,
   /// physical signature and priority.
   std::string toDebugString() const {
-    auto logicalArguments =
-        argumentToString<exec::TypeSignature>(signature()->argumentTypes());
-    auto physicalArguments = argumentToString<TypePtr>(argPhysicalTypes());
+    auto logicalArguments = argumentToString<exec::TypeSignature>(
+        signature()->argumentTypes(), signature()->variableArity());
+    auto physicalArguments = argumentToString<TypePtr>(
+        argPhysicalTypes(), signature()->variableArity());
 
     return fmt::format(
         "Logical signature: ({}) -> {}\nPhysical signature: ({}) -> {}\n"
@@ -415,7 +416,9 @@ class ISimpleFunctionMetadata {
 
  private:
   template <typename T>
-  std::string argumentToString(const std::vector<T>& arguments) const {
+  static std::string argumentToString(
+      const std::vector<T>& arguments,
+      bool isVariadic) {
     std::stringstream ss;
     bool first = true;
     for (const auto& arg : arguments) {
@@ -429,7 +432,7 @@ class ISimpleFunctionMetadata {
         ss << arg->toString();
       }
     }
-    if (signature()->variableArity()) {
+    if (isVariadic) {
       ss << "...";
     }
     return ss.str();
@@ -559,7 +562,8 @@ class SimpleFunctionMetadata : public ISimpleFunctionMetadata {
     return fmt::format(
         "{} ({})",
         name,
-        argumentToString<exec::TypeSignature>(signature_->argumentTypes()));
+        argumentToString<exec::TypeSignature>(
+            signature_->argumentTypes(), isVariadic()));
   }
 
  private:
