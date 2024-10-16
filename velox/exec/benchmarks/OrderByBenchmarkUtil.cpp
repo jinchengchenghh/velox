@@ -265,8 +265,9 @@ RowVectorPtr OrderByBenchmarkUtil::fuzzRows(
     vector_size_t numRows,
     int numKeys,
     memory::MemoryPool* pool) {
-  VectorFuzzer fuzzer({.vectorSize = numRows}, pool);
-  VectorFuzzer fuzzerWithNulls({.vectorSize = numRows, .nullRatio = 0.7}, pool);
+  VectorFuzzer fuzzer({.vectorSize = static_cast<size_t>(numRows)}, pool);
+  VectorFuzzer fuzzerWithNulls(
+      {.vectorSize = static_cast<size_t>(numRows), .nullRatio = 0.7}, pool);
   std::vector<VectorPtr> children;
 
   // Fuzz keys: for front keys (column 0 to numKeys -2) use high
