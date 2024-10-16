@@ -18,6 +18,7 @@
 #include <iostream>
 
 #include "glog/logging.h"
+#include "velox/exec/PlanNodeStats.h"
 #include "velox/exec/benchmarks/OrderByBenchmarkUtil.h"
 #include "velox/exec/tests/utils/AssertQueryBuilder.h"
 #include "velox/exec/tests/utils/PlanBuilder.h"
@@ -47,7 +48,8 @@ class OrderByBenchmark {
           __FILE__,
           "OrderBy_" + testName,
           [test = testCase, iterations = std::max(1, iterations / 10), this]() {
-            auto plan = makeOrderByPlan(test);
+            core::PlanNodeId orderByNodeId;
+            auto plan = makeOrderByPlan(test, orderByNodeId);
             uint64_t inputNanos = 0;
             uint64_t outputNanos = 0;
             uint64_t finishNanos = 0;
@@ -55,17 +57,11 @@ class OrderByBenchmark {
             for (auto i = 0; i < iterations; ++i) {
               std::shared_ptr<Task> task;
               test::AssertQueryBuilder(plan).countResults(task);
-              auto stats = task->taskStats();
-              for (auto& pipeline : stats.pipelineStats) {
-                for (auto& op : pipeline.operatorStats) {
-                  if (op.operatorType != "OrderBy") {
-                    continue;
-                  }
-                  inputNanos += op.addInputTiming.wallNanos;
-                  finishNanos += op.finishTiming.wallNanos;
-                  outputNanos += op.getOutputTiming.wallNanos;
-                }
-              }
+              auto taskStats = exec::toPlanStats(task->taskStats());
+              auto& stats = taskStats.at(orderByNodeId);
+              inputNanos += stats.addInputTiming.wallNanos;
+              finishNanos += stats.finishTiming.wallNanos;
+              outputNanos += stats.getOutputTiming.wallNanos;
             }
             uint64_t total = getCurrentTimeMicro() - start;
             std::cout << "Total " << succinctMicros(total) << " Input "
@@ -78,7 +74,9 @@ class OrderByBenchmark {
   }
 
  private:
-  core::PlanNodePtr makeOrderByPlan(const TestCase& test) {
+  core::PlanNodePtr makeOrderByPlan(
+      const TestCase& test,
+      core::PlanNodeId& orderByNodeId) {
     folly::BenchmarkSuspender suspender;
     std::vector<RowVectorPtr> vectors;
     vectors.emplace_back(OrderByBenchmarkUtil::fuzzRows(
@@ -90,7 +88,11 @@ class OrderByBenchmark {
       keys.emplace_back(fmt::format("c{} ASC NULLS LAST", i));
     }
 
-    return test::PlanBuilder().values(vectors).orderBy(keys, false).planNode();
+    return test::PlanBuilder()
+        .values(vectors)
+        .orderBy(keys, false)
+        .capturePlanNodeId(orderByNodeId)
+        .planNode();
   }
 
   std::shared_ptr<memory::MemoryPool> rootPool_{
