@@ -33,13 +33,13 @@ int32_t getTotalStringSize(
     const std::vector<size_t>& offsets,
     const uint8_t* memoryAddress) {
   size_t size = 0;
-  for (auto pos = 0; pos < numRows; pos++) {
-    if (isNullAt(memoryAddress + offsets[pos], columnIdx)) {
+  for (auto row = 0; row < numRows; row++) {
+    if (isNullAt(memoryAddress + offsets[row], columnIdx)) {
       continue;
     }
 
     int64_t offsetAndSize =
-        *(int64_t*)(memoryAddress + offsets[pos] + fieldOffset);
+        *(int64_t*)(memoryAddress + offsets[row] + fieldOffset);
     int32_t length = static_cast<int32_t>(offsetAndSize);
     if (!StringView::isInline(length)) {
       size += length;
@@ -62,13 +62,13 @@ VectorPtr createFlatVectorFast(
   auto column = BaseVector::create<FlatVector<T>>(type, numRows, pool);
   auto rawValues = column->template mutableRawValues<uint8_t>();
   auto shift = __builtin_ctz(typeWidth);
-  for (auto pos = 0; pos < numRows; pos++) {
-    if (!isNullAt(memoryAddress + offsets[pos], columnIdx)) {
-      const uint8_t* srcPtr = (memoryAddress + offsets[pos] + fieldOffset);
-      uint8_t* destPtr = rawValues + (pos << shift);
+  for (auto row = 0; row < numRows; row++) {
+    if (!isNullAt(memoryAddress + offsets[row], columnIdx)) {
+      const uint8_t* srcPtr = (memoryAddress + offsets[row] + fieldOffset);
+      uint8_t* destPtr = rawValues + (row << shift);
       memcpy(destPtr, srcPtr, typeWidth);
     } else {
-      column->setNull(pos, true);
+      column->setNull(row, true);
     }
   }
   return column;
@@ -87,20 +87,20 @@ VectorPtr createFlatVectorFast<TypeKind::HUGEINT>(
   auto rawValues = column->mutableRawValues<uint8_t>();
   constexpr uint32_t typeWidth = sizeof(int128_t);
   auto shift = __builtin_ctz(typeWidth);
-  for (auto pos = 0; pos < numRows; pos++) {
-    if (!isNullAt(memoryAddress + offsets[pos], columnIdx)) {
-      uint8_t* destptr = rawValues + (pos << shift);
+  for (auto row = 0; row < numRows; row++) {
+    if (!isNullAt(memoryAddress + offsets[row], columnIdx)) {
+      uint8_t* destptr = rawValues + (row << shift);
       int64_t offsetAndSize =
-          *(int64_t*)(memoryAddress + offsets[pos] + fieldOffset);
+          *(int64_t*)(memoryAddress + offsets[row] + fieldOffset);
       int32_t length = static_cast<int32_t>(offsetAndSize);
       int32_t wordOffset = static_cast<int32_t>(offsetAndSize >> 32);
       int128_t value =
           UnsafeRowPrimitiveBatchDeserializer::deserializeLongDecimal(
               std::string_view(reinterpret_cast<const char*>(
-                  memoryAddress + offsets[pos] + wordOffset, length)));
+                  memoryAddress + offsets[row] + wordOffset, length)));
       memcpy(destptr, &value, typeWidth);
     } else {
-      column->setNull(pos, true);
+      column->setNull(row, true);
     }
   }
   return column;
@@ -117,12 +117,12 @@ VectorPtr createFlatVectorFast<TypeKind::BOOLEAN>(
     memory::MemoryPool* pool) {
   auto column = BaseVector::create<FlatVector<bool>>(type, numRows, pool);
   auto rawValues = column->mutableRawValues<uint64_t>();
-  for (auto pos = 0; pos < numRows; pos++) {
-    if (!isNullAt(memoryAddress + offsets[pos], columnIdx)) {
-      bool value = *(bool*)(memoryAddress + offsets[pos] + fieldOffset);
-      bits::setBit(rawValues, pos, value);
+  for (auto row = 0; row < numRows; row++) {
+    if (!isNullAt(memoryAddress + offsets[row], columnIdx)) {
+      bool value = *(bool*)(memoryAddress + offsets[row] + fieldOffset);
+      bits::setBit(rawValues, row, value);
     } else {
-      column->setNull(pos, true);
+      column->setNull(row, true);
     }
   }
   return column;
@@ -138,12 +138,12 @@ VectorPtr createFlatVectorFast<TypeKind::TIMESTAMP>(
     const uint8_t* memoryAddress,
     memory::MemoryPool* pool) {
   auto column = BaseVector::create<FlatVector<Timestamp>>(type, numRows, pool);
-  for (auto pos = 0; pos < numRows; pos++) {
-    if (!isNullAt(memoryAddress + offsets[pos], columnIdx)) {
-      int64_t value = *(int64_t*)(memoryAddress + offsets[pos] + fieldOffset);
-      column->set(pos, Timestamp::fromMicros(value));
+  for (auto row = 0; row < numRows; row++) {
+    if (!isNullAt(memoryAddress + offsets[row], columnIdx)) {
+      int64_t value = *(int64_t*)(memoryAddress + offsets[row] + fieldOffset);
+      column->set(row, Timestamp::fromMicros(value));
     } else {
-      column->setNull(pos, true);
+      column->setNull(row, true);
     }
   }
   return column;
@@ -162,24 +162,24 @@ VectorPtr createFlatVectorFast<TypeKind::VARCHAR>(
   auto size = getTotalStringSize(
       columnIdx, numRows, fieldOffset, offsets, memoryAddress);
   char* rawBuffer = column->getRawStringBufferWithSpace(size, true);
-  for (auto pos = 0; pos < numRows; pos++) {
-    if (!isNullAt(memoryAddress + offsets[pos], columnIdx)) {
+  for (auto row = 0; row < numRows; row++) {
+    if (!isNullAt(memoryAddress + offsets[row], columnIdx)) {
       int64_t offsetAndSize =
-          *(int64_t*)(memoryAddress + offsets[pos] + fieldOffset);
+          *(int64_t*)(memoryAddress + offsets[row] + fieldOffset);
       int32_t length = static_cast<int32_t>(offsetAndSize);
       int32_t wordOffset = static_cast<int32_t>(offsetAndSize >> 32);
-      auto valueSrcPtr = memoryAddress + offsets[pos] + wordOffset;
+      auto valueSrcPtr = memoryAddress + offsets[row] + wordOffset;
       if (StringView::isInline(length)) {
         column->set(
-            pos,
+            row,
             StringView(reinterpret_cast<const char*>(valueSrcPtr), length));
       } else {
         memcpy(rawBuffer, valueSrcPtr, length);
-        column->setNoCopy(pos, StringView(rawBuffer, length));
+        column->setNoCopy(row, StringView(rawBuffer, length));
         rawBuffer += length;
       }
     } else {
-      column->setNull(pos, true);
+      column->setNull(row, true);
     }
   }
   return column;

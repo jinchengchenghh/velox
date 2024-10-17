@@ -187,7 +187,7 @@ TEST_F(UnsafeRowFuzzTests, fast) {
     }
     VELOX_CHECK_LE(offset, kBufferSize * kNumBuffers);
 
-    // Deserialize previous bytes back to row vector
+    // Deserialize previous bytes back to row vector.
     return UnsafeRowDeserializer::deserialize(
         reinterpret_cast<const uint8_t*>(buffer_),
         rowType,
