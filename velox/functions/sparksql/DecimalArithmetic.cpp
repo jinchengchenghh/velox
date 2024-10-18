@@ -579,7 +579,6 @@ std::pair<std::string, std::string> getAddSubtractResultPrecisionScale() {
       fmt::arg("b_scale", S2::name()));
   return {rPrecision, rScale};
 }
-} // namespace
 
 template <typename TExec>
 using AddFunctionAllowPrecisionLoss = DecimalAddFunction<TExec, true>;
@@ -587,29 +586,11 @@ using AddFunctionAllowPrecisionLoss = DecimalAddFunction<TExec, true>;
 template <typename TExec>
 using AddFunctionDenyPrecisionLoss = DecimalAddFunction<TExec, false>;
 
-void registerDecimalAdd(const std::string& prefix) {
-  auto [rPrecision, rScale] = getAddSubtractResultPrecisionScale();
-  registerDecimalBinary<AddFunctionAllowPrecisionLoss>(
-      prefix + "add", makeConstraints(rPrecision, rScale, true));
-  registerDecimalBinary<AddFunctionDenyPrecisionLoss>(
-      prefix + "add" + kDenyPrecisionLoss,
-      makeConstraints(rPrecision, rScale, false));
-}
-
 template <typename TExec>
 using SubtractFunctionAllowPrecisionLoss = DecimalSubtractFunction<TExec, true>;
 
 template <typename TExec>
 using SubtractFunctionDenyPrecisionLoss = DecimalSubtractFunction<TExec, false>;
-
-void registerDecimalSubtract(const std::string& prefix) {
-  auto [rPrecision, rScale] = getAddSubtractResultPrecisionScale();
-  registerDecimalBinary<SubtractFunctionAllowPrecisionLoss>(
-      prefix + "subtract", makeConstraints(rPrecision, rScale, true));
-  registerDecimalBinary<SubtractFunctionDenyPrecisionLoss>(
-      prefix + "subtract" + kDenyPrecisionLoss,
-      makeConstraints(rPrecision, rScale, false));
-}
 
 template <typename TExec>
 using MultiplyFunctionAllowPrecisionLoss = DecimalMultiplyFunction<TExec, true>;
@@ -617,21 +598,11 @@ using MultiplyFunctionAllowPrecisionLoss = DecimalMultiplyFunction<TExec, true>;
 template <typename TExec>
 using MultiplyFunctionDenyPrecisionLoss = DecimalMultiplyFunction<TExec, false>;
 
-void registerDecimalMultiply(const std::string& prefix) {
-  std::string rPrecision = fmt::format(
-      "{a_precision} + {b_precision} + 1",
-      fmt::arg("a_precision", P1::name()),
-      fmt::arg("b_precision", P2::name()));
-  std::string rScale = fmt::format(
-      "{a_scale} + {b_scale}",
-      fmt::arg("a_scale", S1::name()),
-      fmt::arg("b_scale", S2::name()));
-  registerDecimalBinary<MultiplyFunctionAllowPrecisionLoss>(
-      prefix + "multiply", makeConstraints(rPrecision, rScale, true));
-  registerDecimalBinary<MultiplyFunctionDenyPrecisionLoss>(
-      prefix + "multiply" + kDenyPrecisionLoss,
-      makeConstraints(rPrecision, rScale, false));
-}
+template <typename TExec>
+using DivideFunctionAllowPrecisionLoss = DecimalDivideFunction<TExec, true>;
+
+template <typename TExec>
+using DivideFunctionDenyPrecisionLoss = DecimalDivideFunction<TExec, false>;
 
 std::vector<exec::SignatureVariable> getDivideConstraintsDenyPrecisionLoss() {
   std::string wholeDigits = fmt::format(
@@ -680,12 +651,6 @@ std::vector<exec::SignatureVariable> getDivideConstraintsAllowPrecisionLoss() {
   return makeConstraints(rPrecision, rScale, true);
 }
 
-template <typename TExec>
-using DivideFunctionAllowPrecisionLoss = DecimalDivideFunction<TExec, true>;
-
-template <typename TExec>
-using DivideFunctionDenyPrecisionLoss = DecimalDivideFunction<TExec, false>;
-
 template <template <class> typename Func>
 void registerDecimalDivide(
     const std::string& functionName,
@@ -705,6 +670,41 @@ void registerDecimalDivide(
       ShortDecimal<P3, S3>,
       LongDecimal<P1, S1>,
       ShortDecimal<P2, S2>>({functionName}, constraints);
+}
+} // namespace
+
+void registerDecimalAdd(const std::string& prefix) {
+  auto [rPrecision, rScale] = getAddSubtractResultPrecisionScale();
+  registerDecimalBinary<AddFunctionAllowPrecisionLoss>(
+      prefix + "add", makeConstraints(rPrecision, rScale, true));
+  registerDecimalBinary<AddFunctionDenyPrecisionLoss>(
+      prefix + "add" + kDenyPrecisionLoss,
+      makeConstraints(rPrecision, rScale, false));
+}
+
+void registerDecimalSubtract(const std::string& prefix) {
+  auto [rPrecision, rScale] = getAddSubtractResultPrecisionScale();
+  registerDecimalBinary<SubtractFunctionAllowPrecisionLoss>(
+      prefix + "subtract", makeConstraints(rPrecision, rScale, true));
+  registerDecimalBinary<SubtractFunctionDenyPrecisionLoss>(
+      prefix + "subtract" + kDenyPrecisionLoss,
+      makeConstraints(rPrecision, rScale, false));
+}
+
+void registerDecimalMultiply(const std::string& prefix) {
+  std::string rPrecision = fmt::format(
+      "{a_precision} + {b_precision} + 1",
+      fmt::arg("a_precision", P1::name()),
+      fmt::arg("b_precision", P2::name()));
+  std::string rScale = fmt::format(
+      "{a_scale} + {b_scale}",
+      fmt::arg("a_scale", S1::name()),
+      fmt::arg("b_scale", S2::name()));
+  registerDecimalBinary<MultiplyFunctionAllowPrecisionLoss>(
+      prefix + "multiply", makeConstraints(rPrecision, rScale, true));
+  registerDecimalBinary<MultiplyFunctionDenyPrecisionLoss>(
+      prefix + "multiply" + kDenyPrecisionLoss,
+      makeConstraints(rPrecision, rScale, false));
 }
 
 void registerDecimalDivide(const std::string& prefix) {

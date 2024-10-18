@@ -60,7 +60,7 @@ precision and scale are adjusted.
     scale = max(38 - (p - s), min(s, 6))
 
 When precision loss is denied, caps p at 38, and the scale should not be reduced.
-The below formula shows how the precision and scale are adjusted for decimal addition, subtraction, and multiplication..
+The below formula shows how the precision and scale are adjusted for decimal addition, subtraction, and multiplication.
 
 ::
 
