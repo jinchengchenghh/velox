@@ -237,6 +237,16 @@ class RowContainer {
       bool hasNormalizedKey,
       memory::MemoryPool* pool);
 
+  struct Options {
+    Options() = default;
+
+    explicit Options(common::CompressionKind _compressionKind)
+        : compressionKind(_compressionKind) {}
+
+    common::CompressionKind compressionKind{
+        common::CompressionKind::CompressionKind_NONE};
+  };
+
   /// Allocates a new row and initializes possible aggregates to null.
   char* newRow();
 
@@ -330,6 +340,16 @@ class RowContainer {
       const FlatVector<StringView>& vector,
       vector_size_t index,
       char* row);
+
+  uint64_t estimateSerializedSize(
+      folly::Range<char**> rows,
+      int32_t& maxVariableSize) const;
+
+  /// Serialize the rows to out with serde options.
+  void serializedRows(
+      folly::Range<char**> rows,
+      OutputStream* out,
+      const Options& options) const;
 
   /// Copies the values at 'col' into 'result' (starting at 'resultOffset')
   /// for the 'numRows' rows pointed to by 'rows'. If a 'row' is null, sets
@@ -820,6 +840,12 @@ class RowContainer {
  private:
   // Offset of the pointer to the next free row on a free row.
   static constexpr int32_t kNextFreeOffset = 0;
+
+  /// Serialize the rows to output.
+  void serializedRowsNoCompression(
+      folly::Range<char**> rows,
+      OutputStream* out,
+      const Options& options) const;
 
   template <typename T>
   static inline T valueAt(const char* group, int32_t offset) {

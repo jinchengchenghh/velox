@@ -170,6 +170,7 @@ class SpillWriter {
   // Writes data from 'batch_' to the current output file. Returns the actual
   // written size.
   uint64_t flush();
+  uint64_t writeToFile();
 
   // Invoked to increment the number of spilled files and the file size.
   void updateSpilledFileStats(uint64_t fileSize);
@@ -202,6 +203,7 @@ class SpillWriter {
   bool finished_{false};
   uint32_t nextFileId_{0};
   std::unique_ptr<VectorStreamGroup> batch_;
+  std::unique_ptr<IOBufOutputStream> ioStream_;
   std::unique_ptr<SpillWriteFile> currentFile_;
   SpillFiles finishedFiles_;
 };

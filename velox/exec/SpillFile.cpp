@@ -165,6 +165,26 @@ uint64_t SpillWriter::flush() {
   return writtenBytes;
 }
 
+uint64_t SpillWriter::writeToFile() {
+  if (ioStream_ == nullptr) {
+    return 0;
+  }
+
+  auto* file = ensureFile();
+  VELOX_CHECK_NOT_NULL(file);
+
+  uint64_t writeTimeNs{0};
+  uint64_t writtenBytes{0};
+  auto iobuf = ioStream_->getIOBuf();
+  {
+    NanosecondTimer timer(&writeTimeNs);
+    writtenBytes = file->write(std::move(iobuf));
+  }
+  updateWriteStats(writtenBytes, 0, writeTimeNs);
+  updateAndCheckSpillLimitCb_(writtenBytes);
+  return writtenBytes;
+}
+
 uint64_t SpillWriter::write(
     const RowVectorPtr& rows,
     const folly::Range<IndexRange*>& indices) {
@@ -194,7 +214,25 @@ uint64_t SpillWriter::write(
 uint64_t SpillWriter::write(
     const RowContainer& container,
     const std::vector<char*, memory::StlAllocator<char*>>& rows) {
-  return -1;
+  checkNotFinished();
+  auto copyRows = std::vector<char*, memory::StlAllocator<char*>>(
+      rows.begin(), rows.end(), *pool_);
+  // copy the vector of pointers to a vector of ranges
+  auto rowsRange = folly::Range<char**>(copyRows.data(), copyRows.size());
+  if (ioStream_ == nullptr) {
+    int32_t maxVariableSize = 0;
+    ioStream_ = std::make_unique<IOBufOutputStream>(
+        *pool_,
+        nullptr,
+        container.estimateSerializedSize(rowsRange, maxVariableSize));
+  }
+  const auto before = ioStream_->tellp();
+  RowContainer::Options options;
+  // TODO: maybe erase the rows from RowContainer to release memory. No
+  // compaction, so the memory still retains after erase, no need to do it.
+  container.serializedRows(rowsRange, ioStream_.get(), options);
+  writeToFile();
+  return ioStream_->tellp() - before;
 }
 
 void SpillWriter::updateAppendStats(

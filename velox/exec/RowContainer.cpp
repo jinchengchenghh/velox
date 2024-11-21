@@ -755,6 +755,91 @@ void RowContainer::storeSerializedRow(
   }
 }
 
+uint64_t RowContainer::estimateSerializedSize(
+    folly::Range<char**> rows,
+    int32_t& maxVariableSize) const {
+  size_t fixedWidthRowSize = 0;
+  bool hasVariableWidth = false;
+  for (auto i = 0; i < types_.size(); ++i) {
+    const auto& type = types_[i];
+    if (type->isFixedWidth()) {
+      fixedWidthRowSize += typeKindSize(type->kind());
+    } else {
+      hasVariableWidth = true;
+    }
+  }
+
+  size_t totalBytes =
+      flagBytes_ * rows.size() + fixedWidthRowSize * rows.size();
+  if (hasVariableWidth) {
+    for (const char* row : rows) {
+      for (auto i = 0; i < types_.size(); ++i) {
+        const auto& type = types_[i];
+        if (!type->isFixedWidth()) {
+          // 4 bytes for size + N bytes for data.
+          const auto variableRowSize = variableSizeAt(row, i);
+          totalBytes += 4 + variableSizeAt(row, i);
+          maxVariableSize = std::max(maxVariableSize, variableRowSize);
+        }
+      }
+    }
+  }
+
+  // Add the rowSize byte.
+  return totalBytes + rows.size() * sizeof(vector_size_t);
+}
+
+void RowContainer::serializedRows(
+    folly::Range<char**> rows,
+    OutputStream* out,
+    const Options& options) const {
+  int32_t maxVariableSize = 0;
+  auto totalBytes = estimateSerializedSize(rows, maxVariableSize);
+
+  char reuseBuffer[maxVariableSize];
+  if (options.compressionKind ==
+      common::CompressionKind::CompressionKind_NONE) {
+    serializedRowsNoCompression(rows, out, options);
+  } else {
+    IOBufOutputStream stream(*pool(), nullptr, totalBytes);
+    serializedRowsNoCompression(rows, &stream, options);
+    const auto codec = common::compressionKindToCodec(options.compressionKind);
+    const auto compressedBuf = codec->compress(stream.getIOBuf().get());
+    for (auto range : *compressedBuf) {
+      out->write(reinterpret_cast<const char*>(range.data()), range.size());
+    }
+  }
+}
+
+void RowContainer::serializedRowsNoCompression(
+    folly::Range<char**> rows,
+    OutputStream* out,
+    const Options& options) const {
+  int32_t maxVariableSize = 0;
+  char reuseBuffer[maxVariableSize];
+  // Write serialized data.
+  for (auto i = 0; i < rows.size(); ++i) {
+    auto* row = rows[i];
+
+    // Copy nulls and other flags.
+    out->write(row + rowColumns_[0].nullByte(), flagBytes_);
+
+    // Copy values.
+    for (auto j = 0; j < types_.size(); ++j) {
+      const auto& type = types_[j];
+      if (type->isFixedWidth()) {
+        const auto size = typeKindSize(type->kind());
+        out->write(reinterpret_cast<const char*>(&size), sizeof(vector_size_t));
+        out->write(row + rowColumns_[j].offset(), size);
+      } else {
+        const auto size = extractVariableSizeAt(row, j, reuseBuffer);
+        out->write(reinterpret_cast<const char*>(&size), sizeof(vector_size_t));
+        out->write(reuseBuffer, size);
+      }
+    }
+  }
+}
+
 void RowContainer::extractString(
     StringView value,
     FlatVector<StringView>* values,
