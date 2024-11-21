@@ -19,6 +19,7 @@
 #include "velox/common/compression/Compression.h"
 #include "velox/exec/HashBitRange.h"
 #include "velox/exec/RowContainer.h"
+#include "velox/exec/Spill.h"
 
 namespace facebook::velox::exec {
 
@@ -311,6 +312,9 @@ class Spiller {
   // or spill file size limit is exceeded. Returns the number of rows
   // written.
   std::unique_ptr<SpillStatus> writeSpill(int32_t partition);
+
+  /// Spill RowContainer data to disk for a given 'partition'.
+  std::unique_ptr<SpillStatus> writeSpillRowContainer(int32_t partition);
 
   // Indicates if the spill data needs to be sorted before write to file. It is
   // based on the spiller type. As for now, we need to sort spill data for any

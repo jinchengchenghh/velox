@@ -24,6 +24,7 @@
 #include "velox/common/compression/Compression.h"
 #include "velox/common/file/File.h"
 #include "velox/common/file/FileSystems.h"
+#include "velox/exec/RowContainer.h"
 #include "velox/exec/SpillFile.h"
 #include "velox/exec/TreeOfLosers.h"
 #include "velox/exec/UnorderedStreamReader.h"
@@ -378,6 +379,10 @@ class SpillState {
     return sortCompareFlags_;
   }
 
+  bool spillRowContainer() {
+    return true;
+  }
+
   bool isAnyPartitionSpilled() const {
     return !spilledPartitionSet_.empty();
   }
@@ -393,20 +398,28 @@ class SpillState {
   /// the size to append to partition.
   uint64_t appendToPartition(uint32_t partition, const RowVectorPtr& rows);
 
-  /// Finishes a sorted run for 'partition'. If write is called for 'partition'
-  /// again, the data does not have to be sorted relative to the data written so
-  /// far.
+  using SpillRows = std::vector<char*, memory::StlAllocator<char*>>;
+
+  uint64_t appendToPartition(
+      uint32_t partition,
+      const TypePtr& type,
+      const RowContainer& container,
+      const SpillRows& rows);
+
+  /// Finishes a sorted run for 'partition'. If write is called for
+  /// 'partition' again, the data does not have to be sorted relative to the
+  /// data written so far.
   void finishFile(uint32_t partition);
 
   /// Returns the current number of finished files from a given partition.
   ///
-  /// NOTE: the fucntion returns zero if the state has finished or the partition
-  /// is not spilled yet.
+  /// NOTE: the fucntion returns zero if the state has finished or the
+  /// partition is not spilled yet.
   size_t numFinishedFiles(uint32_t partition) const;
 
   /// Returns the spill file objects from a given 'partition'. The function
-  /// returns an empty list if either the partition has not been spilled or has
-  /// no spilled data.
+  /// returns an empty list if either the partition has not been spilled or
+  /// has no spilled data.
   SpillFiles finish(uint32_t partition);
 
   /// Returns the spilled partition number set.
@@ -428,8 +441,8 @@ class SpillState {
 
   const RowTypePtr type_;
 
-  // A callback function that returns the spill directory path. Implementations
-  // can use it to ensure the path exists before returning.
+  // A callback function that returns the spill directory path.
+  // Implementations can use it to ensure the path exists before returning.
   common::GetSpillDirectoryPathCB getSpillDirPathCb_;
 
   // Updates the aggregated spill bytes of this query, and throws if exceeds

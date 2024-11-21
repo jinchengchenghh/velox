@@ -191,6 +191,12 @@ uint64_t SpillWriter::write(
   return flush();
 }
 
+uint64_t SpillWriter::write(
+    const RowContainer& container,
+    const std::vector<char*, memory::StlAllocator<char*>>& rows) {
+  return -1;
+}
+
 void SpillWriter::updateAppendStats(
     uint64_t numRows,
     uint64_t serializationTimeNs) {

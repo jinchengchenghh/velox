@@ -488,6 +488,38 @@ std::unique_ptr<Spiller::SpillStatus> Spiller::writeSpill(int32_t partition) {
   }
 }
 
+std::unique_ptr<Spiller::SpillStatus> Spiller::writeSpillRowContainer(
+    int32_t partition) {
+  VELOX_CHECK_NE(type_, Type::kHashJoinProbe);
+  // Target size of a single vector of spilled content. One of
+  // these will be materialized at a time for each stream of the
+  // merge.
+  constexpr int32_t kTargetBatchBytes = 1 << 18; // 256K
+  constexpr int32_t kTargetBatchRows = 64;
+
+  RowVectorPtr spillVector;
+  auto& run = spillRuns_[partition];
+  try {
+    ensureSorted(run);
+    int64_t totalBytes = 0;
+    size_t written = 0;
+    while (written < run.rows.size()) {
+      totalBytes +=
+          state_.appendToPartition(partition, rowType_, *container_, run.rows);
+      if (totalBytes > state_.targetFileSize()) {
+        VELOX_CHECK(!needSort());
+        state_.finishFile(partition);
+      }
+    }
+    return std::make_unique<SpillStatus>(partition, written, nullptr);
+  } catch (const std::exception&) {
+    // The exception is passed to the caller thread which checks this in
+    // advanceSpill().
+    return std::make_unique<SpillStatus>(
+        partition, 0, std::current_exception());
+  }
+}
+
 void Spiller::runSpill(bool lastRun) {
   ++spillStats_->wlock()->spillRuns;
   VELOX_CHECK(type_ != Spiller::Type::kOrderByOutput || lastRun);
@@ -501,8 +533,11 @@ void Spiller::runSpill(bool lastRun) {
     if (spillRuns_[partition].rows.empty()) {
       continue;
     }
-    writes.push_back(memory::createAsyncMemoryReclaimTask<SpillStatus>(
-        [partition, this]() { return writeSpill(partition); }));
+    writes.push_back(
+        memory::createAsyncMemoryReclaimTask<SpillStatus>([partition, this]() {
+          return state_.spillRowContainer() ? writeSpillRowContainer(partition)
+                                            : writeSpill(partition);
+        }));
     if ((writes.size() > 1) && executor_ != nullptr) {
       executor_->add([source = writes.back()]() { source->prepare(); });
     }

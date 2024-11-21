@@ -24,6 +24,7 @@
 #include "velox/common/file/File.h"
 #include "velox/common/file/FileInputStream.h"
 #include "velox/common/file/FileSystems.h"
+#include "velox/exec/RowContainer.h"
 #include "velox/exec/TreeOfLosers.h"
 #include "velox/exec/UnorderedStreamReader.h"
 #include "velox/serializers/PrestoSerializer.h"
@@ -131,6 +132,10 @@ class SpillWriter {
   uint64_t write(
       const RowVectorPtr& rows,
       const folly::Range<IndexRange*>& indices);
+
+  uint64_t write(
+      const RowContainer& container,
+      const std::vector<char*, memory::StlAllocator<char*>>& rows);
 
   /// Closes the current output file if any. Subsequent calls to write will
   /// start a new one.

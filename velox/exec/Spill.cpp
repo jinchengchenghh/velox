@@ -159,6 +159,41 @@ uint64_t SpillState::appendToPartition(
       rows, folly::Range<IndexRange*>(&range, 1));
 }
 
+using SpillRows = std::vector<char*, memory::StlAllocator<char*>>;
+
+uint64_t SpillState::appendToPartition(
+    uint32_t partition,
+    const TypePtr& type,
+    const RowContainer& container,
+    const SpillRows& rows) {
+  VELOX_CHECK(
+      isPartitionSpilled(partition), "Partition {} is not spilled", partition);
+
+  VELOX_CHECK_NOT_NULL(
+      getSpillDirPathCb_, "Spill directory callback not specified.");
+  auto spillDir = getSpillDirPathCb_();
+  VELOX_CHECK(!spillDir.empty(), "Spill directory does not exist");
+  // Ensure that partition exist before writing.
+  if (partitionWriters_.at(partition) == nullptr) {
+    partitionWriters_[partition] = std::make_unique<SpillWriter>(
+        std::static_pointer_cast<const RowType>(type),
+        numSortKeys_,
+        sortCompareFlags_,
+        compressionKind_,
+        fmt::format("{}/{}-spill-{}", spillDir, fileNamePrefix_, partition),
+        targetFileSize_,
+        writeBufferSize_,
+        fileCreateConfig_,
+        updateAndCheckSpillLimitCb_,
+        pool_,
+        stats_);
+  }
+
+  // updateSpilledInputBytes(rows->estimateFlatSize());
+
+  return partitionWriters_[partition]->write(container, rows);
+}
+
 SpillWriter* SpillState::partitionWriter(uint32_t partition) const {
   VELOX_DCHECK(isPartitionSpilled(partition));
   return partitionWriters_[partition].get();
