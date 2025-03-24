@@ -13,12 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "velox/experimental/cudf/exec/CudfConversion.h"
-#include "velox/experimental/cudf/exec/NvtxHelper.h"
-#include "velox/experimental/cudf/exec/Utilities.h"
-#include "velox/experimental/cudf/exec/VeloxCudfInterop.h"
-#include "velox/experimental/cudf/vector/CudfVector.h"
-
 #include "velox/exec/Driver.h"
 #include "velox/exec/Operator.h"
 #include "velox/vector/ComplexVector.h"
@@ -26,6 +20,12 @@
 #include <cudf/concatenate.hpp>
 #include <cudf/table/table.hpp>
 #include <cudf/utilities/default_stream.hpp>
+
+#include "velox/experimental/cudf/exec/CudfConversion.h"
+#include "velox/experimental/cudf/exec/NvtxHelper.h"
+#include "velox/experimental/cudf/exec/Utilities.h"
+#include "velox/experimental/cudf/exec/VeloxCudfInterop.h"
+#include "velox/experimental/cudf/vector/CudfVector.h"
 
 namespace facebook::velox::cudf_velox {
 
@@ -50,12 +50,13 @@ RowVectorPtr mergeRowVectors(
   return copy;
 }
 
-cudf::size_type preferredGpuBatchSizeRows() {
-  constexpr cudf::size_type kDefaultGpuBatchSizeRows = 100000;
-  const char* envCudfGpuBatchSizeRows =
+cudf::size_type preferred_gpu_batch_size_rows() {
+  constexpr cudf::size_type default_gpu_batch_size_rows = 100000;
+  const char* env_cudf_gpu_batch_size_rows =
       std::getenv("VELOX_CUDF_GPU_BATCH_SIZE_ROWS");
-  return envCudfGpuBatchSizeRows != nullptr ? std::stoi(envCudfGpuBatchSizeRows)
-                                            : kDefaultGpuBatchSizeRows;
+  return env_cudf_gpu_batch_size_rows != nullptr
+      ? std::stoi(env_cudf_gpu_batch_size_rows)
+      : default_gpu_batch_size_rows;
 }
 } // namespace
 
@@ -84,26 +85,26 @@ void CudfFromVelox::addInput(RowVectorPtr input) {
 
       // Accumulate inputs
       inputs_.push_back(input);
-      currentOutputSize_ += input->size();
+      current_output_size_ += input->size();
     }
   }
 }
 
 RowVectorPtr CudfFromVelox::getOutput() {
   VELOX_NVTX_OPERATOR_FUNC_RANGE();
-  const auto kTargetOutputSize = preferredGpuBatchSizeRows();
-  const auto kExitEarly = finished_ or
-      (currentOutputSize_ < kTargetOutputSize and not noMoreInput_) or
+  auto const target_output_size = preferred_gpu_batch_size_rows();
+  auto const exit_early = finished_ or
+      (current_output_size_ < target_output_size and not noMoreInput_) or
       inputs_.empty();
   finished_ = noMoreInput_;
-  if (kExitEarly) {
+  if (exit_early) {
     return nullptr;
   }
 
   // Combine all input RowVectors into a single RowVector and clear inputs
   auto input = mergeRowVectors(inputs_, inputs_[0]->pool());
   inputs_.clear();
-  currentOutputSize_ = 0;
+  current_output_size_ = 0;
 
   // Early return if no input
   if (input->size() == 0) {
@@ -114,22 +115,28 @@ RowVectorPtr CudfFromVelox::getOutput() {
   auto stream = cudfGlobalStreamPool().get_stream();
 
   // Convert RowVector to cudf table
-  auto tbl = with_arrow::toCudfTable(input, input->pool(), stream);
+  auto tbl = with_arrow::to_cudf_table(input, input->pool(), stream);
 
   stream.synchronize();
 
   VELOX_CHECK_NOT_NULL(tbl);
 
+  if (cudfDebugEnabled()) {
+    std::cout << "CudfFromVelox table number of columns: " << tbl->num_columns()
+              << std::endl;
+    std::cout << "CudfFromVelox table number of rows: " << tbl->num_rows()
+              << std::endl;
+  }
+
   // Return a CudfVector that owns the cudf table
-  const auto kSize = tbl->num_rows();
+  auto const size = tbl->num_rows();
   return std::make_shared<CudfVector>(
-      input->pool(), outputType_, kSize, std::move(tbl), stream);
+      input->pool(), outputType_, size, std::move(tbl), stream);
 }
 
 void CudfFromVelox::close() {
   cudf::get_default_stream().synchronize();
   exec::Operator::close();
-  inputs_.clear();
 }
 
 CudfToVelox::CudfToVelox(
@@ -148,9 +155,9 @@ CudfToVelox::CudfToVelox(
 void CudfToVelox::addInput(RowVectorPtr input) {
   // Accumulate inputs
   if (input->size() > 0) {
-    auto cudfInput = std::dynamic_pointer_cast<CudfVector>(input);
-    VELOX_CHECK_NOT_NULL(cudfInput);
-    inputs_.push_back(std::move(cudfInput));
+    auto cudf_input = std::dynamic_pointer_cast<CudfVector>(input);
+    VELOX_CHECK_NOT_NULL(cudf_input);
+    inputs_.push_back(std::move(cudf_input));
   }
 }
 
@@ -166,11 +173,17 @@ RowVectorPtr CudfToVelox::getOutput() {
   inputs_.pop_front();
 
   VELOX_CHECK_NOT_NULL(tbl);
+  if (cudfDebugEnabled()) {
+    std::cout << "CudfToVelox table number of columns: " << tbl->num_columns()
+              << std::endl;
+    std::cout << "CudfToVelox table number of rows: " << tbl->num_rows()
+              << std::endl;
+  }
   if (tbl->num_rows() == 0) {
     return nullptr;
   }
   RowVectorPtr output =
-      with_arrow::toVeloxColumn(tbl->view(), pool(), "", stream);
+      with_arrow::to_velox_column(tbl->view(), pool(), "", stream);
   stream.synchronize();
   finished_ = noMoreInput_ && inputs_.empty();
   output->setType(outputType_);
@@ -179,7 +192,8 @@ RowVectorPtr CudfToVelox::getOutput() {
 
 void CudfToVelox::close() {
   exec::Operator::close();
-  inputs_.clear();
+  // TODO: Release stored inputs if needed
+  // TODO: Release cudf memory resources
 }
 
 } // namespace facebook::velox::cudf_velox

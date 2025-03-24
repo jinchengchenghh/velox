@@ -24,22 +24,38 @@
 #include <cudf/table/table.hpp>
 #include <cudf/types.hpp>
 
-namespace facebook::velox::cudf_velox::with_arrow {
-std::unique_ptr<cudf::table> toCudfTable(
+namespace facebook::velox::cudf_velox {
+
+cudf::type_id velox_to_cudf_type_id(const TypePtr& type);
+TypePtr cudf_type_id_to_velox_type(cudf::type_id type_id);
+
+std::unique_ptr<cudf::table> to_cudf_table(
+    const facebook::velox::RowVectorPtr& leftBatch);
+facebook::velox::VectorPtr to_velox_column(
+    const cudf::column_view& col,
+    facebook::velox::memory::MemoryPool* pool);
+facebook::velox::RowVectorPtr to_velox_column(
+    const cudf::table_view& table,
+    facebook::velox::memory::MemoryPool* pool,
+    std::string name_prefix = "c");
+
+namespace with_arrow {
+std::unique_ptr<cudf::table> to_cudf_table(
     const facebook::velox::RowVectorPtr& veloxTable,
     facebook::velox::memory::MemoryPool* pool,
     rmm::cuda_stream_view stream);
 
-facebook::velox::RowVectorPtr toVeloxColumn(
+facebook::velox::RowVectorPtr to_velox_column(
     const cudf::table_view& table,
     facebook::velox::memory::MemoryPool* pool,
-    std::string namePrefix,
+    std::string name_prefix,
     rmm::cuda_stream_view stream);
 
-facebook::velox::RowVectorPtr toVeloxColumn(
+facebook::velox::RowVectorPtr to_velox_column(
     const cudf::table_view& table,
     facebook::velox::memory::MemoryPool* pool,
     const std::vector<std::string>& columnNames,
     rmm::cuda_stream_view stream);
+} // namespace with_arrow
 
-} // namespace facebook::velox::cudf_velox::with_arrow
+} // namespace facebook::velox::cudf_velox

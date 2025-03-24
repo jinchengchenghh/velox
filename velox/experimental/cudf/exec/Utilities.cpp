@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
+#include <cstdlib>
+#include <memory>
+#include <string_view>
+
 #include "velox/experimental/cudf/exec/Utilities.h"
 
-#include <cudf/concatenate.hpp>
-#include <cudf/detail/utilities/stream_pool.hpp>
-#include <cudf/utilities/default_stream.hpp>
-#include <cudf/utilities/error.hpp>
-#include <cudf/utilities/memory_resource.hpp>
+#include <common/base/Exceptions.h>
 
 #include <rmm/mr/device/arena_memory_resource.hpp>
 #include <rmm/mr/device/cuda_async_memory_resource.hpp>
@@ -30,57 +30,57 @@
 #include <rmm/mr/device/owning_wrapper.hpp>
 #include <rmm/mr/device/pool_memory_resource.hpp>
 
-#include <common/base/Exceptions.h>
-
-#include <cstdlib>
-#include <memory>
-#include <string_view>
+#include <cudf/concatenate.hpp>
+#include <cudf/detail/utilities/stream_pool.hpp>
+#include <cudf/utilities/default_stream.hpp>
+#include <cudf/utilities/error.hpp>
+#include <cudf/utilities/memory_resource.hpp>
 
 namespace facebook::velox::cudf_velox {
 
 namespace {
-[[nodiscard]] auto makeCudaMr() {
+auto make_cuda_mr() {
   return std::make_shared<rmm::mr::cuda_memory_resource>();
 }
 
-[[nodiscard]] auto makePoolMr() {
+auto make_pool_mr() {
   return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(
-      makeCudaMr(), rmm::percent_of_free_device_memory(50));
+      make_cuda_mr(), rmm::percent_of_free_device_memory(50));
 }
 
-[[nodiscard]] auto makeAsyncMr() {
+auto make_async_mr() {
   return std::make_shared<rmm::mr::cuda_async_memory_resource>();
 }
 
-[[nodiscard]] auto makeManagedMr() {
+auto make_managed_mr() {
   return std::make_shared<rmm::mr::managed_memory_resource>();
 }
 
-[[nodiscard]] auto makeArenaMr() {
+auto make_arena_mr() {
   return rmm::mr::make_owning_wrapper<rmm::mr::arena_memory_resource>(
-      makeCudaMr());
+      make_cuda_mr());
 }
 
-[[nodiscard]] auto makeManagedPoolMr() {
+auto make_managed_pool_mr() {
   return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(
-      makeManagedMr(), rmm::percent_of_free_device_memory(50));
+      make_managed_mr(), rmm::percent_of_free_device_memory(50));
 }
 } // namespace
 
-std::shared_ptr<rmm::mr::device_memory_resource> createMemoryResource(
+std::shared_ptr<rmm::mr::device_memory_resource> create_memory_resource(
     std::string_view mode) {
   if (mode == "cuda")
-    return makeCudaMr();
+    return make_cuda_mr();
   if (mode == "pool")
-    return makePoolMr();
+    return make_pool_mr();
   if (mode == "async")
-    return makeAsyncMr();
+    return make_async_mr();
   if (mode == "arena")
-    return makeArenaMr();
+    return make_arena_mr();
   if (mode == "managed")
-    return makeManagedMr();
+    return make_managed_mr();
   if (mode == "managed_pool")
-    return makeManagedPoolMr();
+    return make_managed_pool_mr();
   throw cudf::logic_error(
       "Unknown memory resource mode: " + std::string(mode) +
       "\nExpecting: cuda, pool, async, arena, managed, or managed_pool");
@@ -89,6 +89,11 @@ std::shared_ptr<rmm::mr::device_memory_resource> createMemoryResource(
 cudf::detail::cuda_stream_pool& cudfGlobalStreamPool() {
   return cudf::detail::global_cuda_stream_pool();
 };
+
+bool cudfDebugEnabled() {
+  const char* env_cudf_debug = std::getenv("VELOX_CUDF_DEBUG");
+  return env_cudf_debug != nullptr && std::stoi(env_cudf_debug);
+}
 
 std::unique_ptr<cudf::table> concatenateTables(
     std::vector<std::unique_ptr<cudf::table>> tables,
@@ -105,39 +110,9 @@ std::unique_ptr<cudf::table> concatenateTables(
       tables.begin(),
       tables.end(),
       std::back_inserter(tableViews),
-      [&](const auto& tbl) { return tbl->view(); });
+      [&](auto const& tbl) { return tbl->view(); });
   return cudf::concatenate(
       tableViews, stream, cudf::get_current_device_resource_ref());
-}
-
-std::unique_ptr<cudf::table> getConcatenatedTable(
-    std::vector<CudfVectorPtr>& tables,
-    rmm::cuda_stream_view stream) {
-  // Check for empty vector
-  VELOX_CHECK_GT(tables.size(), 0);
-
-  auto inputStreams = std::vector<rmm::cuda_stream_view>();
-  auto tableViews = std::vector<cudf::table_view>();
-
-  inputStreams.reserve(tables.size());
-  tableViews.reserve(tables.size());
-
-  for (const auto& table : tables) {
-    VELOX_CHECK_NOT_NULL(table);
-    tableViews.push_back(table->getTableView());
-    inputStreams.push_back(table->stream());
-  }
-
-  cudf::detail::join_streams(inputStreams, stream);
-
-  if (tables.size() == 1) {
-    return tables[0]->release();
-  }
-
-  auto output = cudf::concatenate(
-      tableViews, stream, cudf::get_current_device_resource_ref());
-  stream.synchronize();
-  return output;
 }
 
 } // namespace facebook::velox::cudf_velox

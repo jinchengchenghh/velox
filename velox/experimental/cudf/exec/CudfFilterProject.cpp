@@ -1,0 +1,165 @@
+/*
+ * Copyright (c) Facebook, Inc. and its affiliates.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+#include "velox/experimental/cudf/exec/CudfFilterProject.h"
+#include "velox/experimental/cudf/exec/Utilities.h"
+#include "velox/expression/ConstantExpr.h"
+#include "velox/expression/FieldReference.h"
+#include "velox/type/Type.h"
+#include "velox/vector/ConstantVector.h"
+
+#include <cudf/datetime.hpp>
+#include <cudf/strings/attributes.hpp>
+#include <cudf/strings/contains.hpp>
+#include <cudf/strings/slice.hpp>
+#include <cudf/table/table.hpp>
+#include <cudf/transform.hpp>
+
+#include <sstream>
+#include <unordered_map>
+
+namespace facebook::velox::cudf_velox {
+
+namespace {
+
+void debug_print_tree(
+    const std::shared_ptr<velox::exec::Expr>& expr,
+    int indent = 0) {
+  std::cout << std::string(indent, ' ') << expr->name() << std::endl;
+  for (auto& input : expr->inputs()) {
+    debug_print_tree(input, indent + 2);
+  }
+}
+} // namespace
+
+CudfFilterProject::CudfFilterProject(
+    int32_t operatorId,
+    velox::exec::DriverCtx* driverCtx,
+    const velox::exec::FilterProject::Export& info,
+    std::vector<velox::exec::IdentityProjection> identityProjections,
+    const std::shared_ptr<const core::FilterNode>& filter,
+    const std::shared_ptr<const core::ProjectNode>& project)
+    : Operator(
+          driverCtx,
+          project ? project->outputType() : filter->outputType(),
+          operatorId,
+          project ? project->id() : filter->id(),
+          "CudfFilterProject"),
+      NvtxHelper(nvtx3::rgb{220, 20, 60}, operatorId), // Crimson
+      hasFilter_(filter != nullptr),
+      project_(project),
+      filter_(filter) {
+  // If Filter is present, ctor fails.
+  VELOX_CHECK(!hasFilter_, "Filter not supported yet");
+  resultProjections_ = *(info.resultProjections);
+  identityProjections_ = std::move(identityProjections);
+  const auto& inputType = project_->sources()[0]->outputType();
+
+  // convert to AST
+  if (cudfDebugEnabled()) {
+    int i = 0;
+    for (auto expr : info.exprs->exprs()) {
+      std::cout << "expr[" << i++ << "] " << expr->toString() << std::endl;
+      debug_print_tree(expr);
+    }
+  }
+  expressionEvaluator_ = ExpressionEvaluator(info.exprs->exprs(), inputType);
+}
+
+void CudfFilterProject::addInput(RowVectorPtr input) {
+  input_ = std::move(input);
+}
+
+RowVectorPtr CudfFilterProject::getOutput() {
+  VELOX_NVTX_OPERATOR_FUNC_RANGE();
+
+  if (allInputProcessed()) {
+    return nullptr;
+  }
+  if (input_->size() == 0) {
+    input_.reset();
+    return nullptr;
+  }
+
+  auto cudf_input = std::dynamic_pointer_cast<CudfVector>(input_);
+  VELOX_CHECK_NOT_NULL(cudf_input);
+  auto stream = cudf_input->stream();
+  auto input_table_columns = cudf_input->release()->release();
+
+  // Evaluate the expressions
+  auto columns = expressionEvaluator_.compute(
+      input_table_columns, stream, cudf::get_current_device_resource_ref());
+
+  // Rearrange columns to match outputType_
+  std::vector<std::unique_ptr<cudf::column>> output_columns(
+      outputType_->size());
+  // computed resultProjections
+  for (int i = 0; i < resultProjections_.size(); i++) {
+    VELOX_CHECK_NOT_NULL(columns[i]);
+    output_columns[resultProjections_[i].outputChannel] = std::move(columns[i]);
+  }
+
+  // Count occurrences of each inputChannel, and move columns if they occur only
+  // once
+  std::unordered_map<column_index_t, int> inputChannelCount;
+  for (const auto& identity : identityProjections_) {
+    inputChannelCount[identity.inputChannel]++;
+  }
+
+  // identityProjections (input to output copy)
+  for (auto const& identity : identityProjections_) {
+    VELOX_CHECK_NOT_NULL(input_table_columns[identity.inputChannel]);
+    if (inputChannelCount[identity.inputChannel] == 1) {
+      // Move the column if it occurs only once
+      output_columns[identity.outputChannel] =
+          std::move(input_table_columns[identity.inputChannel]);
+    } else {
+      // Otherwise, copy the column and decrement the count
+      output_columns[identity.outputChannel] = std::make_unique<cudf::column>(
+          *input_table_columns[identity.inputChannel],
+          stream,
+          cudf::get_current_device_resource_ref());
+    }
+    VELOX_CHECK_GT(inputChannelCount[identity.inputChannel], 0);
+    inputChannelCount[identity.inputChannel]--;
+  }
+
+  auto output_table = std::make_unique<cudf::table>(std::move(output_columns));
+  stream.synchronize();
+  auto const num_columns = output_table->num_columns();
+  auto const size = output_table->num_rows();
+  if (cudfDebugEnabled()) {
+    std::cout << "cudfProject Output: " << size << " rows, " << num_columns
+              << " columns " << std::endl;
+  }
+
+  auto cudf_output = std::make_shared<CudfVector>(
+      input_->pool(), outputType_, size, std::move(output_table), stream);
+  input_.reset();
+  if (num_columns == 0 or size == 0) {
+    return nullptr;
+  }
+  return cudf_output;
+}
+
+bool CudfFilterProject::allInputProcessed() {
+  return !input_;
+}
+
+bool CudfFilterProject::isFinished() {
+  return noMoreInput_ && allInputProcessed();
+}
+
+} // namespace facebook::velox::cudf_velox

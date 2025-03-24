@@ -12,27 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_library(
-  velox_cudf_exec
-  CudfConversion.cpp
-  CudfFilterProject.cpp
-  CudfHashAggregation.cpp
-  CudfHashJoin.cpp
-  CudfOrderBy.cpp
-  ExpressionEvaluator.cpp
-  ToCudf.cpp
-  Utilities.cpp
-  VeloxCudfInterop.cpp)
-
-set_target_properties(
-  velox_cudf_exec
-  PROPERTIES CUDA_ARCHITECTURES native)
-
-target_link_libraries(
-  velox_cudf_exec
-  cudf::cudf
-  arrow
-  velox_arrow_bridge
-  velox_exception
-  velox_common_base
-  velox_exec)
+add_subdirectory(parquet)

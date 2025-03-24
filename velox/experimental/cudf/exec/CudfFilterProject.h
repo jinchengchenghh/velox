@@ -19,29 +19,34 @@
 #include "velox/core/Expressions.h"
 #include "velox/core/PlanNode.h"
 #include "velox/exec/Driver.h"
+#include "velox/exec/FilterProject.h"
 #include "velox/exec/Operator.h"
+#include "velox/experimental/cudf/exec/ExpressionEvaluator.h"
 #include "velox/experimental/cudf/exec/NvtxHelper.h"
 #include "velox/experimental/cudf/vector/CudfVector.h"
+#include "velox/expression/Expr.h"
 #include "velox/vector/ComplexVector.h"
 
-#include <cudf/table/table.hpp>
+#include <cudf/ast/expressions.hpp>
 
 namespace facebook::velox::cudf_velox {
 
-class CudfOrderBy : public exec::Operator, public NvtxHelper {
+// TODO: Does not support Filter yet.
+class CudfFilterProject : public exec::Operator, public NvtxHelper {
  public:
-  CudfOrderBy(
+  CudfFilterProject(
       int32_t operatorId,
-      exec::DriverCtx* driverCtx,
-      const std::shared_ptr<const core::OrderByNode>& orderByNode);
+      velox::exec::DriverCtx* driverCtx,
+      const velox::exec::FilterProject::Export& info,
+      std::vector<velox::exec::IdentityProjection> identityProjections,
+      const std::shared_ptr<const core::FilterNode>& filter,
+      const std::shared_ptr<const core::ProjectNode>& project);
 
   bool needsInput() const override {
-    return !finished_;
+    return !input_;
   }
 
   void addInput(RowVectorPtr input) override;
-
-  void noMoreInput() override;
 
   RowVectorPtr getOutput() override;
 
@@ -49,21 +54,25 @@ class CudfOrderBy : public exec::Operator, public NvtxHelper {
     return exec::BlockingReason::kNotBlocked;
   }
 
-  bool isFinished() override {
-    return finished_;
+  bool isFinished() override;
+
+  void close() override {
+    Operator::close();
+    expressionEvaluator_.close();
   }
 
-  void close() override;
-
  private:
-  CudfVectorPtr outputTable_;
-  std::shared_ptr<const core::OrderByNode> orderByNode_;
-  std::vector<CudfVectorPtr> inputs_;
-  std::vector<cudf::size_type> sort_keys_;
-  std::vector<cudf::order> column_order_;
-  std::vector<cudf::null_order> null_order_;
-  bool finished_{false};
-  uint32_t maxOutputRows_;
+  bool allInputProcessed();
+  // If true exprs_[0] is a filter and the other expressions are projections
+  const bool hasFilter_{false};
+  // Cached filter and project node for lazy initialization. After
+  // initialization, they will be reset, and initialized_ will be set to true.
+  std::shared_ptr<const core::ProjectNode> project_;
+  std::shared_ptr<const core::FilterNode> filter_;
+  ExpressionEvaluator expressionEvaluator_;
+
+  std::vector<velox::exec::IdentityProjection> resultProjections_;
+  std::vector<velox::exec::IdentityProjection> identityProjections_;
 };
 
 } // namespace facebook::velox::cudf_velox

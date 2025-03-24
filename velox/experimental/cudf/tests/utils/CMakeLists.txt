@@ -12,27 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_library(
-  velox_cudf_exec
-  CudfConversion.cpp
-  CudfFilterProject.cpp
-  CudfHashAggregation.cpp
-  CudfHashJoin.cpp
-  CudfOrderBy.cpp
-  ExpressionEvaluator.cpp
-  ToCudf.cpp
-  Utilities.cpp
-  VeloxCudfInterop.cpp)
+add_library(velox_cudf_exec_test_lib ParquetConnectorTestBase.cpp
+                                     CudfPlanBuilder.cpp)
 
 set_target_properties(
-  velox_cudf_exec
+  velox_cudf_exec_test_lib
   PROPERTIES CUDA_ARCHITECTURES native)
 
 target_link_libraries(
-  velox_cudf_exec
+  velox_cudf_exec_test_lib
+  velox_vector_test_lib
+  velox_temp_path
+  velox_cursor
   cudf::cudf
-  arrow
-  velox_arrow_bridge
+  velox_cudf_exec
+  velox_core
   velox_exception
-  velox_common_base
-  velox_exec)
+  velox_expression
+  velox_parse_parser
+  velox_duckdb_conversion
+  velox_file_test_utils
+  velox_cudf_parquet_connector
+  velox_aggregates)
