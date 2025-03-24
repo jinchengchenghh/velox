@@ -43,7 +43,7 @@ auto make_cuda_mr() {
   return std::make_shared<rmm::mr::cuda_memory_resource>();
 }
 
-auto make_pool_mr() {
+[[nodiscard]] auto make_pool_mr() {
   return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(
       make_cuda_mr(), rmm::percent_of_free_device_memory(50));
 }
