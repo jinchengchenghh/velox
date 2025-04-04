@@ -271,6 +271,7 @@ struct cudfDriverAdapter {
       printf("driver.planNodes_=%p\n", planNodes_.get());
     }
     auto res = state.compile();
+    planNodes_->clear();
     return res;
   }
 
