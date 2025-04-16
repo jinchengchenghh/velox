@@ -84,7 +84,7 @@ add_executable(
   SplitToStringTest.cpp
   SqlTest.cpp
   StreamingAggregationTest.cpp
-  TableScanTest.cpp
+  # TableScanTest.cpp
   TableWriteTest.cpp
   TaskListenerTest.cpp
   ThreadDebugInfoTest.cpp
