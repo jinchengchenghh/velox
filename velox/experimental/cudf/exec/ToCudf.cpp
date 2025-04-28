@@ -55,6 +55,8 @@ bool isAnyOf(const Base* p) {
   return ((dynamic_cast<const Deriveds*>(p) != nullptr) || ...);
 }
 
+static constexpr const char* kCudfEngine = "cudf.engine";
+
 } // namespace
 
 bool CompileState::compile() {
@@ -101,7 +103,9 @@ bool CompileState::compile() {
   auto isFilterProjectSupported = [](const exec::Operator* op) {
     if (auto filterProjectOp = dynamic_cast<const exec::FilterProject*>(op)) {
       auto info = filterProjectOp->exprsAndProjection();
-      return ExpressionEvaluator::canBeEvaluated(info.exprs->exprs());
+      return ExpressionEvaluator::canBeEvaluated(
+          info.exprs->exprs(),
+          ctx->queryConfig().get<std::string>(kCudfEngine, ""));
     }
     return false;
   };

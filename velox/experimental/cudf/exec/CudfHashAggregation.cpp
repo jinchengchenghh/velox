@@ -367,19 +367,20 @@ std::unique_ptr<cudf_velox::CudfHashAggregation::Aggregator> createAggregator(
     uint32_t inputIndex,
     VectorPtr constant,
     bool isGlobal) {
-  if (kind == "sum") {
+  // Companion function may be count_merge_extract or count_partial or others, so use this to map
+  if (kind.starts_with("sum")) {
     return std::make_unique<SumAggregator>(
         step, inputIndex, constant, isGlobal);
-  } else if (kind == "count") {
+  } else if (kind.starts_with("count")) {
     return std::make_unique<CountAggregator>(
         step, inputIndex, constant, isGlobal);
-  } else if (kind == "min") {
+  } else if (kind.starts_with("min")) {
     return std::make_unique<MinAggregator>(
         step, inputIndex, constant, isGlobal);
-  } else if (kind == "max") {
+  } else if (kind.starts_with("max")) {
     return std::make_unique<MaxAggregator>(
         step, inputIndex, constant, isGlobal);
-  } else if (kind == "avg") {
+  } else if (kind.starts_with("avg")) {
     return std::make_unique<MeanAggregator>(
         step, inputIndex, constant, isGlobal);
   } else {

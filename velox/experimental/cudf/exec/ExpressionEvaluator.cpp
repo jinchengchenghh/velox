@@ -214,6 +214,20 @@ const std::map<std::string, Op> binaryOps = {
     {"and", Op::NULL_LOGICAL_AND},
     {"or", Op::NULL_LOGICAL_OR}};
 
+const std::map<std::string, Op> sparkBinaryOps = {
+    {"add", Op::ADD},
+    {"subtract", Op::SUB},
+    {"multiply", Op::MUL},
+    {"divide", Op::DIV},
+    {"equalto", Op::EQUAL},
+    {"lessthan", Op::LESS},
+    {"greaterthan", Op::GREATER},
+    {"lessthanorequal", Op::LESS_EQUAL},
+    {"greaterthanorequal", Op::GREATER_EQUAL},
+    {"and", Op::NULL_LOGICAL_AND},
+    {"or", Op::NULL_LOGICAL_OR}};
+}
+
 const std::map<std::string, Op> unaryOps = {{"not", Op::NOT}};
 
 const std::unordered_set<std::string> supportedOps = {
@@ -229,12 +243,20 @@ const std::unordered_set<std::string> supportedOps = {
 
 namespace detail {
 
-bool canBeEvaluated(const std::shared_ptr<velox::exec::Expr>& expr) {
+bool canBeEvaluated(
+    const std::shared_ptr<velox::exec::Expr>& expr,
+    const std::string& engine) {
   const auto& name = expr->name();
-  if (supportedOps.count(name) || binaryOps.count(name) ||
+  const auto& enginebinaryOps =
+      (engine == "spark") ? sparkBinaryOps : binaryOps;
+  if (supportedOps.count(name) || enginebinaryOps.count(name) ||
       unaryOps.count(name)) {
     return std::all_of(
-        expr->inputs().begin(), expr->inputs().end(), canBeEvaluated);
+        expr->inputs().begin(),
+        expr->inputs().end(),
+        [&](const std::shared_ptr<velox::exec::Expr>& input) {
+          return canBeEvaluated(input, engine);
+        });
   }
   return std::dynamic_pointer_cast<velox::exec::FieldReference>(expr) !=
       nullptr;
@@ -255,7 +277,9 @@ struct AstContext {
       std::string const& instruction);
   cudf::ast::expression const& multipleInputsToPairWise(
       const std::shared_ptr<velox::exec::Expr>& expr);
-  static bool canBeEvaluated(const std::shared_ptr<velox::exec::Expr>& expr);
+  static bool canBeEvaluated(
+      const std::shared_ptr<velox::exec::Expr>& expr,
+      const std::string& engine);
 };
 
 // Create tree from Expr
@@ -614,7 +638,13 @@ std::vector<std::unique_ptr<cudf::column>> ExpressionEvaluator::compute(
 }
 
 bool ExpressionEvaluator::canBeEvaluated(
-    const std::vector<std::shared_ptr<velox::exec::Expr>>& exprs) {
-  return std::all_of(exprs.begin(), exprs.end(), detail::canBeEvaluated);
+    const std::vector<std::shared_ptr<velox::exec::Expr>>& exprs,
+    const std::string& engine) {
+  return std::all_of(
+      exprs.begin(),
+      exprs.end(),
+      [&](const std::shared_ptr<velox::exec::Expr>& input) {
+        return detail::canBeEvaluated(input, engine);
+      });
 }
 } // namespace facebook::velox::cudf_velox
