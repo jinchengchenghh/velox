@@ -226,7 +226,6 @@ const std::map<std::string, Op> sparkBinaryOps = {
     {"greaterthanorequal", Op::GREATER_EQUAL},
     {"and", Op::NULL_LOGICAL_AND},
     {"or", Op::NULL_LOGICAL_OR}};
-}
 
 const std::map<std::string, Op> unaryOps = {{"not", Op::NOT}};
 
