@@ -249,20 +249,12 @@ const std::unordered_set<std::string> supportedOps = {
 
 namespace detail {
 
-bool canBeEvaluated(
-    const std::shared_ptr<velox::exec::Expr>& expr,
-    const std::string& engine) {
+bool canBeEvaluated(const std::shared_ptr<velox::exec::Expr>& expr) {
   const auto& name = expr->name();
-  const auto& enginebinaryOps =
-      (engine == "spark") ? sparkBinaryOps : binaryOps;
-  if (supportedOps.count(name) || enginebinaryOps.count(name) ||
+  if (supportedOps.count(name) || binaryOps.count(name) ||
       unaryOps.count(name)) {
     return std::all_of(
-        expr->inputs().begin(),
-        expr->inputs().end(),
-        [&](const std::shared_ptr<velox::exec::Expr>& input) {
-          return canBeEvaluated(input, engine);
-        });
+        expr->inputs().begin(), expr->inputs().end(), canBeEvaluated);
   }
   return std::dynamic_pointer_cast<velox::exec::FieldReference>(expr) !=
       nullptr;
@@ -283,9 +275,7 @@ struct AstContext {
       std::string const& instruction);
   cudf::ast::expression const& multipleInputsToPairWise(
       const std::shared_ptr<velox::exec::Expr>& expr);
-  static bool canBeEvaluated(
-      const std::shared_ptr<velox::exec::Expr>& expr,
-      const std::string& engine);
+  static bool canBeEvaluated(const std::shared_ptr<velox::exec::Expr>& expr);
 };
 
 // Create tree from Expr
@@ -644,13 +634,7 @@ std::vector<std::unique_ptr<cudf::column>> ExpressionEvaluator::compute(
 }
 
 bool ExpressionEvaluator::canBeEvaluated(
-    const std::vector<std::shared_ptr<velox::exec::Expr>>& exprs,
-    const std::string& engine) {
-  return std::all_of(
-      exprs.begin(),
-      exprs.end(),
-      [&](const std::shared_ptr<velox::exec::Expr>& input) {
-        return detail::canBeEvaluated(input, engine);
-      });
+    const std::vector<std::shared_ptr<velox::exec::Expr>>& exprs) {
+  return std::all_of(exprs.begin(), exprs.end(), detail::canBeEvaluated);
 }
 } // namespace facebook::velox::cudf_velox
