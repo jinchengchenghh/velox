@@ -100,7 +100,7 @@ bool CompileState::compile() {
             cudfTableScanEnabled();
       };
 
-  auto isFilterProjectSupported = [](const exec::Operator* op) {
+  auto isFilterProjectSupported = [ctx](const exec::Operator* op) {
     if (auto filterProjectOp = dynamic_cast<const exec::FilterProject*>(op)) {
       auto info = filterProjectOp->exprsAndProjection();
       return ExpressionEvaluator::canBeEvaluated(
