@@ -280,6 +280,42 @@ TEST_F(AggregationTest, aggregateOfNulls) {
   assertQuery(op, "SELECT sum(c1), min(c1), max(c1) FROM tmp");
 }
 
+TEST_F(AggregationTest, aggregateEmptyInput) {
+  auto rowVector = makeRowVector({
+      BatchMaker::createVector<TypeKind::BIGINT>(
+          rowType_->childAt(0), 0, *pool_),
+      makeNullConstant(TypeKind::SMALLINT, 0),
+  });
+
+  auto vectors = {rowVector};
+  createDuckDbTable(vectors);
+
+  auto op = PlanBuilder()
+                .values(vectors)
+                .aggregation(
+                    {"c0"},
+                    {"sum(c1)", "min(c1)", "max(c1)"},
+                    {},
+                    core::AggregationNode::Step::kPartial,
+                    false)
+                .planNode();
+
+  assertQuery(op, "SELECT c0, sum(c1), min(c1), max(c1) FROM tmp GROUP BY c0");
+
+  // global aggregation
+  op = PlanBuilder()
+           .values(vectors)
+           .aggregation(
+               {},
+               {"sum(c1)", "min(c1)", "max(c1)"},
+               {},
+               core::AggregationNode::Step::kPartial,
+               false)
+           .planNode();
+
+  assertQuery(op, "SELECT sum(c1), min(c1), max(c1) FROM tmp");
+}
+
 TEST_F(AggregationTest, allKeyTypes) {
   // Covers different key types. Unlike the integer/string tests, the
   // hash table begins life in the generic mode, not array or
