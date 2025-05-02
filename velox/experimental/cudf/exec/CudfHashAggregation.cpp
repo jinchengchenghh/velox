@@ -367,6 +367,8 @@ std::unique_ptr<cudf_velox::CudfHashAggregation::Aggregator> createAggregator(
     uint32_t inputIndex,
     VectorPtr constant,
     bool isGlobal) {
+  std::cout << "the step is " << core::AggregationNode::stepName(step)
+            << std::endl;
   // Companion function may be count_merge_extract or count_partial or others,
   // so use this to map
   if (kind.rfind("sum", 0) == 0) {
@@ -523,6 +525,7 @@ void CudfHashAggregation::setupGroupingKeyChannelProjections(
 }
 
 void CudfHashAggregation::addInput(RowVectorPtr input) {
+  std::cout << "add input " << input->size();
   // Accumulate inputs
   if (input->size() > 0) {
     auto cudfInput = std::dynamic_pointer_cast<cudf_velox::CudfVector>(input);
@@ -647,14 +650,19 @@ RowVectorPtr CudfHashAggregation::getOutput() {
   }
 
   VELOX_CHECK_NOT_NULL(tbl);
+  RowVectorPtr output = 0;
 
   if (!isGlobal_) {
-    return doGroupByAggregation(std::move(tbl), stream);
+    output = doGroupByAggregation(std::move(tbl), stream);
   } else if (isDistinct_) {
-    return getDistinctKeys(std::move(tbl), stream);
+    output = getDistinctKeys(std::move(tbl), stream);
   } else {
-    return doGlobalAggregation(std::move(tbl), stream);
+    output = doGlobalAggregation(std::move(tbl), stream);
   }
+
+  std::cout << "get the output " << output->size() std::endl;
+
+  return output;
 }
 
 void CudfHashAggregation::noMoreInput() {
