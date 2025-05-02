@@ -660,7 +660,7 @@ RowVectorPtr CudfHashAggregation::getOutput() {
     output = doGlobalAggregation(std::move(tbl), stream);
   }
 
-  std::cout << "get the output " << output->size() std::endl;
+  std::cout << "get the output " << output->size() << std::endl;
 
   return output;
 }
