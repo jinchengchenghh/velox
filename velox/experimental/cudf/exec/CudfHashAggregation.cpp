@@ -361,6 +361,10 @@ struct MeanAggregator : cudf_velox::CudfHashAggregation::Aggregator {
   uint32_t countIdx_;
 };
 
+inline bool endsWith(const std::string& kind, std::string_view suffix) {
+  return folly::StringPiece(kind).endsWith(suffix);
+}
+
 std::unique_ptr<cudf_velox::CudfHashAggregation::Aggregator> createAggregator(
     core::AggregationNode::Step step,
     std::string const& kind,
@@ -371,6 +375,15 @@ std::unique_ptr<cudf_velox::CudfHashAggregation::Aggregator> createAggregator(
             << std::endl;
   // Companion function may be count_merge_extract or count_partial or others,
   // so use this to map
+  std::unordered_map<std::string, core::AggregationNode::Step> companionStep = {
+      {"_partial", core::AggregationNode::Step::kPartial},
+      {"_merge", core::AggregationNode::Step::kFinal},
+      {"_merge_extract", core::AggregationNode::Step::kIntermediate}};
+  for (const auto& [k, v] : companionStep) {
+    if (endsWith(kind, k)) {
+      step = v;
+    }
+  }
   if (kind.rfind("sum", 0) == 0) {
     return std::make_unique<SumAggregator>(
         step, inputIndex, constant, isGlobal);
