@@ -25,7 +25,6 @@
 #include <cudf/types.hpp>
 
 using namespace facebook::velox::connector;
-using namespace facebook::velox::connector;
 using namespace facebook::velox::config;
 namespace facebook::velox::cudf_velox::connector::parquet {
 
