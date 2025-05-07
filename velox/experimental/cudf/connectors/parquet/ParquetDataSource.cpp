@@ -194,17 +194,15 @@ void ParquetDataSource::addSplit(std::shared_ptr<ConnectorSplit> split) {
 
   // TODO: `completedBytes_` should be updated in `next()` as we read more and
   // more table bytes
-  const auto& filePaths = split_->getCudfSourceInfo().filepaths();
-  for (const auto& filePath : filePaths) {
-    completedBytes_ += std::filesystem::file_size(filePath);
-  }
+  completedBytes_ += std::filesystem::file_size(split_->getFilePath());
 }
 
 std::unique_ptr<cudf::io::chunked_parquet_reader>
 ParquetDataSource::createSplitReader() {
   // Reader options
+  const cudf::io::source_info cudfSourceInfo{split_->getFilePath()};
   auto readerOptions =
-      cudf::io::parquet_reader_options::builder(split_->getCudfSourceInfo())
+      cudf::io::parquet_reader_options::builder(cudfSourceInfo)
           .skip_rows(parquetConfig_->skipRows())
           .use_pandas_metadata(parquetConfig_->isUsePandasMetadata())
           .use_arrow_schema(parquetConfig_->isUseArrowSchema())
