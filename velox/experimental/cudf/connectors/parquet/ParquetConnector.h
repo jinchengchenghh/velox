@@ -20,19 +20,19 @@
 
 namespace facebook::velox::cudf_velox::connector::parquet {
 
-class ParquetConnectorFactory : public velox::connector::ConnectorFactory {
+class ParquetConnectorFactory : public connector::ConnectorFactory {
  public:
   static constexpr const char* kParquetConnectorName = "parquet";
 
   ParquetConnectorFactory()
-      : velox::connector::ConnectorFactory(kParquetConnectorName) {}
+      : connector::ConnectorFactory(kParquetConnectorName) {}
 
   explicit ParquetConnectorFactory(const char* connectorName)
-      : velox::connector::ConnectorFactory(connectorName) {}
+      : connector::ConnectorFactory(connectorName) {}
 
-  std::shared_ptr<velox::connector::Connector> newConnector(
+  std::shared_ptr<connector::Connector> newConnector(
       const std::string& id,
-      std::shared_ptr<const velox::config::ConfigBase> config,
+      std::shared_ptr<const config::ConfigBase> config,
       folly::Executor* ioExecutor = nullptr,
       folly::Executor* cpuExecutor = nullptr) override;
 };
