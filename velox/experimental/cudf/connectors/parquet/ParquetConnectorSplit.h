@@ -19,6 +19,8 @@
 #include "velox/connectors/Connector.h"
 #include "velox/dwio/common/Options.h"
 
+#include <cudf/io/types.hpp>
+
 #include <string>
 
 namespace facebook::velox::cudf_velox::connector::parquet {
@@ -28,19 +30,21 @@ struct ParquetConnectorSplit
   const std::string filePath;
   const facebook::velox::dwio::common::FileFormat fileFormat{
       facebook::velox::dwio::common::FileFormat::PARQUET};
+  const cudf::io::source_info cudfSourceInfo;
 
   ParquetConnectorSplit(
       const std::string& connectorId,
       const std::string& _filePath,
       int64_t _splitWeight = 0)
       : facebook::velox::connector::ConnectorSplit(connectorId, _splitWeight),
-        filePath(_filePath) {}
+        filePath(_filePath),
+        cudfSourceInfo({filePath}) {}
 
   std::string toString() const override;
   std::string getFileName() const;
 
-  const std::string& getFilePath() const {
-    return filePath;
+  const cudf::io::source_info& getCudfSourceInfo() const {
+    return cudfSourceInfo;
   }
 
   static std::shared_ptr<ParquetConnectorSplit> create(
