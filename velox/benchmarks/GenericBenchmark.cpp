@@ -28,7 +28,7 @@ using namespace facebook::velox;
 namespace {
 core::PlanNodePtr getPlanNode(std::string planFile, memory::MemoryPool* pool) {
   auto fs = filesystems::getFileSystem(planFile, nullptr);
-  auto obj = getTaskMetadata(planFile, fs);
+  auto obj = exec::trace::getTaskMetadata(planFile, fs);
 
   return ISerializable::deserialize<core::PlanNode>(obj, pool);
 }
@@ -40,7 +40,7 @@ class GenericBenchmark : public QueryBenchmarkBase {
     const auto plan = getPlanNode(FLAGS_plan, pool_.get());
     std::shared_ptr<exec::Task> task;
     suspender.dismiss();
-    test::AssertQueryBuilder(plan).runWithoutResults(task);
+    exec::test::AssertQueryBuilder(plan).runWithoutResults(task);
   }
 
  private:
@@ -48,7 +48,7 @@ class GenericBenchmark : public QueryBenchmarkBase {
       memory::memoryManager()->addRootPool()};
   std::shared_ptr<memory::MemoryPool> pool_{
       rootPool_->addLeafChild("GenericBenchmark")};
-}
+};
 
 BENCHMARK(runBenchmark) {
   GenericBenchmark benchmark;
