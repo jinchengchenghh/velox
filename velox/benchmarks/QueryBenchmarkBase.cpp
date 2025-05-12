@@ -15,6 +15,7 @@
  */
 
 #include "velox/benchmarks/QueryBenchmarkBase.h"
+#include "velox/functions/sparksql/registration/Register.h"
 
 DEFINE_string(data_format, "parquet", "Data format");
 
@@ -91,6 +92,11 @@ DEFINE_int32(
 
 DEFINE_int32(split_preload_per_driver, 2, "Prefetch split metadata");
 
+DEFINE_string(
+    engine,
+    "presto",
+    "The engine decides the functions to register, optinal value is spark");
+
 using namespace facebook::velox::exec;
 using namespace facebook::velox::exec::test;
 using namespace facebook::velox::dwio::common;
@@ -166,8 +172,13 @@ void QueryBenchmarkBase::initialize() {
   } else {
     memory::MemoryManager::testingSetInstance({});
   }
-  functions::prestosql::registerAllScalarFunctions();
-  aggregate::prestosql::registerAllAggregateFunctions();
+  if (FLAGS_engine == "presto") {
+    functions::prestosql::registerAllScalarFunctions();
+    aggregate::prestosql::registerAllAggregateFunctions();
+  } else {
+    functions::sparksql::registerFunctions("");
+  }
+
   parse::registerTypeResolver();
   filesystems::registerLocalFileSystem();
 
