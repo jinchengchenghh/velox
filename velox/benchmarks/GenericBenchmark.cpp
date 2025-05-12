@@ -23,7 +23,7 @@
 
 DEFINE_string(plan, "", "Path to input json file of the velox plan.");
 
-using namespace facebok::veox;
+using namespace facebook::velox;
 
 namespace {
 core::PlanNodePtr getPlanNode(std::string planFile, memory::MemoryPool* pool) {
@@ -38,7 +38,7 @@ class GenericBenchmark : public QueryBenchmarkBase {
   void run() {
     folly::BenchmarkSuspender suspender;
     const auto plan = getPlanNode(FLAGS_plan, pool_.get());
-    std::shared_ptr<Task> task;
+    std::shared_ptr<exec::Task> task;
     suspender.dismiss();
     test::AssertQueryBuilder(plan).runWithoutResults(task);
   }
