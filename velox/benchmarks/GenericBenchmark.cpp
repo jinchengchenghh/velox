@@ -15,7 +15,6 @@
  */
 
 #include <gflags/gflags.h>
-#include "velox/benchmarks/QueryBenchmarkBase.h"
 #include "velox/core/PlanNode.h"
 #include "velox/exec/Task.h"
 #include "velox/exec/TraceUtil.h"
@@ -33,7 +32,7 @@ core::PlanNodePtr getPlanNode(std::string planFile, memory::MemoryPool* pool) {
   return ISerializable::deserialize<core::PlanNode>(obj, pool);
 }
 
-class GenericBenchmark : public QueryBenchmarkBase {
+class GenericBenchmark {
  public:
   void run() {
     folly::BenchmarkSuspender suspender;
