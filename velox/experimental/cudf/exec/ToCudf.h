@@ -30,6 +30,9 @@ namespace facebook::velox::cudf_velox {
 
 static const std::string kCudfAdapterName = "cuDF";
 
+// QueryConfig key.
+static const std::string kCudfEnabled = "cudf.enabled";
+
 class CompileState {
  public:
   CompileState(const exec::DriverFactory& driverFactory, exec::Driver& driver)
@@ -71,5 +74,7 @@ bool cudfDebugEnabled();
  * @brief Returns true if the velox_cudf_table_scan flag is set to true.
  */
 bool cudfTableScanEnabled();
+
+bool isCudfOperator(const exec::Operator* op);
 
 } // namespace facebook::velox::cudf_velox
