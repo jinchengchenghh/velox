@@ -46,6 +46,13 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT VELOX_MONO_LIBRARY)
                          PRIVATE -Wno-deprecated-declarations)
 endif()
 
+
+if(VELOX_MONO_LIBRARY)
+    target_compile_options(velox PRIVATE -Wno-cpp)
+else()
+  target_compile_options(velox_functions_prestosql PRIVATE -Wno-cpp)
+endif()
+
 velox_link_libraries(velox_functions_prestosql velox_functions_prestosql_impl
                      velox_is_null_functions simdjson::simdjson)
 
