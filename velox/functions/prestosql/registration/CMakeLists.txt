@@ -52,6 +52,7 @@ if(VELOX_MONO_LIBRARY)
 else()
   target_compile_options(velox_functions_prestosql PRIVATE -Wno-cpp)
 endif()
+velox_link_libraries(velox_functions_prestosql GEOS::geos)
 
 velox_link_libraries(velox_functions_prestosql velox_functions_prestosql_impl
                      velox_is_null_functions simdjson::simdjson)
