@@ -18,7 +18,7 @@ add_executable(velox_cudf_aggregation_test Main.cpp AggregationTest.cpp)
 add_executable(velox_cudf_table_scan_test Main.cpp TableScanTest.cpp)
 add_executable(velox_cudf_table_write_test Main.cpp TableWriteTest.cpp)
 add_executable(velox_cudf_local_partition_test Main.cpp LocalPartitionTest.cpp)
-add_executable(velox_cudf_filter_project_test Main.cpp FilterProjectTest.cpp SparkFilterProjectTest.cpp)
+add_executable(velox_cudf_filter_project_test Main.cpp FilterProjectTest.cpp)
 add_executable(velox_cudf_limit_test Main.cpp LimitTest.cpp)
 
 add_test(
@@ -148,7 +148,6 @@ target_link_libraries(
   velox_cudf_exec
   velox_exec
   velox_exec_test_lib
-  velox_functions_spark
   velox_test_util
   gtest
   gtest_main)

@@ -344,7 +344,7 @@ Task::~Task() {
   // jemalloc when destroying some Tasks.
 #define CLEAR(_action_)   \
   clearStage = #_action_; \
-  _action_;               
+  _action_;               \
   CLEAR(threadFinishPromises_.clear());
   CLEAR(splitGroupStates_.clear());
   CLEAR(taskStats_ = TaskStats());

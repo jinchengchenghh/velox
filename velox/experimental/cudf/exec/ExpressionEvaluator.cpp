@@ -24,7 +24,6 @@
 #include "velox/vector/VectorTypeUtils.h"
 
 #include <cudf/datetime.hpp>
-#include <cudf/hashing.hpp>
 #include <cudf/strings/attributes.hpp>
 #include <cudf/strings/contains.hpp>
 #include <cudf/strings/slice.hpp>
@@ -237,9 +236,7 @@ const std::unordered_map<std::string, Op> binaryOps = [] {
 
 const std::map<std::string, Op> unaryOps = {{"not", Op::NOT}};
 
-const std::unordered_set<std::string> supportedSparkOps = {"hash_with_seed"};
-
-const std::unordered_set<std::string> supportedPrestoOps = {
+const std::unordered_set<std::string> supportedOps = {
     "literal",
     "between",
     "in",
@@ -249,13 +246,6 @@ const std::unordered_set<std::string> supportedPrestoOps = {
     "length",
     "substr",
     "like"};
-
-const std::unordered_set<std::string> supportedOps = [] {
-  std::unordered_set<std::string> result;
-  result.insert(supportedSparkOps.begin(), supportedSparkOps.end());
-  result.insert(supportedPrestoOps.begin(), supportedPrestoOps.end());
-  return result;
-}();
 
 namespace detail {
 
@@ -520,16 +510,6 @@ cudf::ast::expression const& AstContext::pushExprToTree(
     std::string likeExpr = "like " + std::to_string(scalars.size() - 1);
 
     return addPrecomputeInstruction(fieldExpr->name(), likeExpr);
-  } else if (name == "hash_with_seed") {
-    // Only supports hash 1 column now.
-    VELOX_CHECK_EQ(len, 2);
-    auto c1 = dynamic_cast<ConstantExpr*>(expr->inputs()[0].get());
-    VELOX_CHECK_NOT_NULL(c1, "Expression seed is not a literal");
-    auto fieldExpr =
-        std::dynamic_pointer_cast<FieldReference>(expr->inputs()[1]);
-    VELOX_CHECK_NOT_NULL(fieldExpr, "Expression is not a field");
-    std::string hashExpr = "hash " + c1->value()->toString(0);
-    return addPrecomputeInstruction(fieldExpr->name(), hashExpr);
   } else if (auto fieldExpr = std::dynamic_pointer_cast<FieldReference>(expr)) {
     // Refer to the appropriate side
     for (size_t sideIdx = 0; sideIdx < inputRowSchema.size(); ++sideIdx) {
@@ -600,14 +580,6 @@ void addPrecomputedColumns(
               "", true, stream, cudf::get_current_device_resource_ref()),
           stream,
           cudf::get_current_device_resource_ref());
-      input_table_columns.emplace_back(std::move(newColumn));
-    } else if (ins_name.rfind("hash", 0) == 0) {
-      std::istringstream iss(ins_name.substr(4));
-      uint32_t seed;
-      iss >> seed;
-      cudf::table_view t{{input_table_columns[dependent_column_index]->view()}};
-      auto newColumn = cudf::hashing::murmurhash3_x86_32(
-          t, seed, stream, cudf::get_current_device_resource_ref());
       input_table_columns.emplace_back(std::move(newColumn));
     } else {
       VELOX_FAIL("Unsupported precompute operation " + ins_name);
