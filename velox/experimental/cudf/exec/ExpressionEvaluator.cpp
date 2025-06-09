@@ -429,7 +429,7 @@ cudf::ast::expression const& AstContext::pushExprToTree(
       result = &treeNode;
     }
     return *result;
-  } else if (name == "cast") {
+  } else if (name == "cast" || name == "try_cast") {
     VELOX_CHECK_EQ(len, 1);
     auto const& op1 = pushExprToTree(expr->inputs()[0]);
     if (expr->type()->kind() == TypeKind::INTEGER) {
@@ -440,7 +440,7 @@ cudf::ast::expression const& AstContext::pushExprToTree(
     } else if (expr->type()->kind() == TypeKind::DOUBLE) {
       return tree.push(Operation{Op::CAST_TO_FLOAT64, op1});
     } else {
-      VELOX_FAIL("Unsupported type for cast operation");
+      VELOX_FAIL("Unsupported type for cast or try_cast operation");
     }
   } else if (name == "switch") {
     VELOX_CHECK_EQ(len, 3);
