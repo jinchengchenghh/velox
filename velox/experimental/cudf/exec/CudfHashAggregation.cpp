@@ -559,7 +559,7 @@ auto toIntermediateAggregators(
     }
     const auto originalName = getOriginalName(kind);
     const auto resultType =
-        exec::Aggregate::finalType(originalName, argumentTypes);
+        exec::Aggregate::intermediateType(originalName, argumentTypes);
     aggregators.push_back(createAggregator(
         step, kind, inputIndex, constant, isGlobal, resultType));
   }
