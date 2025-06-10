@@ -67,10 +67,10 @@ using namespace facebook::velox;
         std::vector<cudf::groupby::aggregation_result>& results,              \
         rmm::cuda_stream_view stream) override {                              \
       auto col = std::move(results[output_idx].results[0]);                   \
-      if (col->type() !=                                                      \
-          cudf::data_type(cudf_velox::veloxToCudfTypeId(resultType))) {       \
-        col = cudf::cast(                                                     \
-            *col, cudf_velox::veloxToCudfTypeId(resultType), stream);         \
+      const auto cudfType =                                                   \
+          cudf::data_type(cudf_velox::veloxToCudfTypeId(resultType));         \
+      if (col->type() != cudfType) {                                          \
+        col = cudf::cast(*col, cudfType, stream);                             \
       }                                                                       \
       return col;                                                             \
     }                                                                         \
@@ -159,13 +159,10 @@ struct CountAggregator : cudf_velox::CudfHashAggregation::Aggregator {
       rmm::cuda_stream_view stream) override {
     // cudf produces int32 for count(0) but velox expects int64
     auto col = std::move(results[outputIdx_].results[0]);
-
-    if (col->type() !=
-        cudf::data_type(cudf_velox::veloxToCudfTypeId(resultType))) {
-      col = cudf::cast(
-          *col,
-          cudf::data_type(cudf_velox::veloxToCudfTypeId(resultType)),
-          stream);
+    const auto cudfOutputType =
+        cudf::data_type(cudf_velox::veloxToCudfTypeId(resultType));
+    if (col->type() != cudfOutputType) {
+      col = cudf::cast(*col, cudfOutputType, stream);
     }
     return col;
   }
@@ -254,10 +251,10 @@ struct MeanAggregator : cudf_velox::CudfHashAggregation::Aggregator {
         auto const cudfCountType = cudf::data_type(
             cudf_velox::veloxToCudfTypeId(outputType->childAt(1)));
         if (sum->type() != cudf::data_type(cudfSumType)) {
-          sum = cudf::cast(*col, cudf::data_type(cudfSumType), stream);
+          sum = cudf::cast(*sum, cudf::data_type(cudfSumType), stream);
         }
         if (count->type() != cudf::data_type(cudfCountType)) {
-          count = cudf::cast(*col, cudf::data_type(cudfCountType), stream);
+          count = cudf::cast(*count, cudf::data_type(cudfCountType), stream);
         }
 
         auto children = std::vector<std::unique_ptr<cudf::column>>();
@@ -290,10 +287,10 @@ struct MeanAggregator : cudf_velox::CudfHashAggregation::Aggregator {
         auto const cudfCountType = cudf::data_type(
             cudf_velox::veloxToCudfTypeId(outputType->childAt(1)));
         if (sum->type() != cudf::data_type(cudfSumType)) {
-          sum = cudf::cast(*col, cudf::data_type(cudfSumType), stream);
+          sum = cudf::cast(*sum, cudf::data_type(cudfSumType), stream);
         }
         if (count->type() != cudf::data_type(cudfCountType)) {
-          count = cudf::cast(*col, cudf::data_type(cudfCountType), stream);
+          count = cudf::cast(*count, cudf::data_type(cudfCountType), stream);
         }
 
         auto children = std::vector<std::unique_ptr<cudf::column>>();
@@ -315,8 +312,6 @@ struct MeanAggregator : cudf_velox::CudfHashAggregation::Aggregator {
             *sum,
             *count,
             cudf::binary_operator::DIV,
-            // TODO: Change the output type to be dependent on the input type
-            // like in the cudf groupby implementation.
             cudf::data_type(cudf_velox::veloxToCudfTypeId(resultType)),
             stream);
         return avg;
@@ -477,7 +472,7 @@ core::AggregationNode::Step getCompanionStep(
 std::string getOriginalName(std::string const& kind) {
   for (const auto& [k, v] : companionStep) {
     if (folly::StringPiece(kind).endsWith(k)) {
-      return kind.substr(0, kind.length - k.length);
+      return kind.substr(0, kind.length() - k.length());
     }
   }
   return kind;
@@ -532,11 +527,10 @@ auto toAggregators(
     auto const inputIndex = aggInputs[0];
     auto const constant = aggConstants.empty() ? nullptr : aggConstants[0];
     auto const companionStep = getCompanionStep(kind, step);
-    // Use argumentTypes and kind to get the intermadiate type.
     const auto originalName = getOriginalName(kind);
-    const auto resultType = isPartialOutput_
-        ? Aggregate::intermediateType(originalName, argumentTypes)
-        : aggregate.resultType();
+    const auto resultType = exec::isPartialOutput(companionStep)
+        ? exec::Aggregate::intermediateType(originalName, argumentTypes)
+        : exec::Aggregate::finalType(originalName, argumentTypes);
     aggregators.push_back(createAggregator(
         companionStep, kind, inputIndex, constant, isGlobal, resultType));
   }
@@ -559,8 +553,15 @@ auto toIntermediateAggregators(
     auto const inputIndex = aggregationNode.groupingKeys().size() + i;
     auto const kind = aggregate.call->name();
     auto const constant = nullptr;
+    std::vector<TypePtr> argumentTypes;
+    for (auto const& arg : aggregate.call->inputs()) {
+      argumentTypes.push_back(arg->type());
+    }
+    const auto originalName = getOriginalName(kind);
+    const auto resultType =
+        exec::Aggregate::finalType(originalName, argumentTypes);
     aggregators.push_back(createAggregator(
-        step, kind, inputIndex, constant, isGlobal, aggregate.resultType()));
+        step, kind, inputIndex, constant, isGlobal, resultType));
   }
   return aggregators;
 }
