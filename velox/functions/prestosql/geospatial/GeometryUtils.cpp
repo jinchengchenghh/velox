@@ -71,13 +71,10 @@ std::optional<std::string> geometryInvalidReason(
       return fmt::format(
           "Unknown Geometry type: {}", geometry->getGeometryType());
   }
-  geos::geom::Coordinate nonSimpleLocation = isSimpleOp.getNonSimpleLocation();
   return fmt::format(
-      "Non-simple {}: {} ({} {})",
+      "Non-simple {}: {}",
       geometry->getGeometryType(),
-      description,
-      nonSimpleLocation.x,
-      nonSimpleLocation.y);
+      description);
 }
 
 } // namespace facebook::velox::functions::geospatial
