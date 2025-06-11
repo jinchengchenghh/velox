@@ -60,13 +60,13 @@ TEST_F(AggregationTest, sumReal) {
   auto data =
       makeRowVector({makeFlatVector<float>({3.4028235E12, 3.4028235E12})});
   auto vectors = {data};
-  plan = PlanBuilder()
-             .values(vectors)
-             .partialAggregation({}, {"sum(c0)"})
-             .finalAggregation()
-             .planNode();
+  auto plan = PlanBuilder()
+                  .values(vectors)
+                  .partialAggregation({}, {"sum(c0)"})
+                  .finalAggregation()
+                  .planNode();
   auto expected = makeRowVector(
-      {"c0"}, {makeFlatVector<double>({3.4028235E12 + 3.4028235E12})});
+      {"c0"}, {makeConstant<double>(3.4028235E12 + 3.4028235E12, 1)});
   assertQuery(plan, expected);
 }
 
