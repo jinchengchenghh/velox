@@ -22,6 +22,7 @@ add_test(velox_cudf_spark_aggregates_test
 
 target_link_libraries(
   velox_cudf_spark_aggregates_test
+  velox_cudf_exec
   velox_exec_test_lib
   velox_vector_test_lib
   velox_functions_aggregates_test_lib
