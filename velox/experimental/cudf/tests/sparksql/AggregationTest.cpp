@@ -30,7 +30,7 @@ class AggregationTest : public AggregationTestBase {
  protected:
   void SetUp() override {
     AggregationTestBase::SetUp();
-    registerAggregateFunctions("spark_");
+    functions::aggregate::sparksql::registerAggregateFunctions("");
     filesystems::registerLocalFileSystem();
     // After register supports function prefix, we could register the function
     // with spark_ to align with sparksql AverageAggregationTest, not sure the
@@ -41,32 +41,33 @@ class AggregationTest : public AggregationTestBase {
   void TearDown() override {
     cudf_velox::unregisterCudf();
   }
+};
 
-  TEST_F(AggregationTest, sumReal) {
-    // spark sum:
-    // exec::AggregateFunctionSignatureBuilder()
-    // .returnType("double")
-    // .intermediateType("double")
-    // .argumentType("real")
-    // .build(),
-    // presto sum:
-    // exec::AggregateFunctionSignatureBuilder()
-    //       .returnType("real")
-    //       .intermediateType("double")
-    //       .argumentType("real")
-    //       .build(),
-    // The sum(real) final result type is different.
-    auto data =
-        makeRowVector({makeFlatVector<float>({3.4028235E12, 3.4028235E12})});
-    auto vectors = {data};
-    plan = PlanBuilder()
-               .values(vectors)
-               .partialAggregation({}, {"sum(c0)"})
-               .finalAggregation()
-               .planNode();
-    auto expected = makeRowVector(
-        {"c0"}, {makeFlatVector<double>({3.4028235E12 + 3.4028235E12})});
-    assertQuery(plan, expected);
-  }
+TEST_F(AggregationTest, sumReal) {
+  // spark sum:
+  // exec::AggregateFunctionSignatureBuilder()
+  // .returnType("double")
+  // .intermediateType("double")
+  // .argumentType("real")
+  // .build(),
+  // presto sum:
+  // exec::AggregateFunctionSignatureBuilder()
+  //       .returnType("real")
+  //       .intermediateType("double")
+  //       .argumentType("real")
+  //       .build(),
+  // The sum(real) final result type is different.
+  auto data =
+      makeRowVector({makeFlatVector<float>({3.4028235E12, 3.4028235E12})});
+  auto vectors = {data};
+  plan = PlanBuilder()
+             .values(vectors)
+             .partialAggregation({}, {"sum(c0)"})
+             .finalAggregation()
+             .planNode();
+  auto expected = makeRowVector(
+      {"c0"}, {makeFlatVector<double>({3.4028235E12 + 3.4028235E12})});
+  assertQuery(plan, expected);
+}
 
 } // namespace facebook::velox::exec::sparksql::test
