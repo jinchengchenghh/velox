@@ -15,7 +15,6 @@
  */
 
 #include "velox/experimental/cudf/exec/CudfFilterProject.h"
-#include "velox/experimental/cudf/exec/DebugUtil.h"
 #include "velox/experimental/cudf/exec/ToCudf.h"
 #include "velox/experimental/cudf/exec/VeloxCudfInterop.h"
 #include "velox/experimental/cudf/vector/CudfVector.h"
@@ -106,13 +105,6 @@ RowVectorPtr CudfFilterProject::getOutput() {
   auto stream = cudfInput->stream();
   auto inputTableColumns = cudfInput->release()->release();
 
-  if (cudfDebugEnabled()) {
-    DebugUtil util;
-    std::cout << "project input "
-              << util.toString(cudfInput->getTableView(), stream, 0, 10001)
-              << std::endl;
-  }
-
   if (hasFilter_) {
     filter(inputTableColumns, stream);
   }
@@ -125,10 +117,6 @@ RowVectorPtr CudfFilterProject::getOutput() {
   if (cudfDebugEnabled()) {
     std::cout << "cudfProject Output: " << size << " rows, " << numColumns
               << " columns " << std::endl;
-    DebugUtil util;
-    std::cout << "project output "
-              << util.toString(outputTable->view(), stream, 0, 10001)
-              << std::endl;
   }
 
   auto cudfOutput = std::make_shared<CudfVector>(
