@@ -552,7 +552,8 @@ auto toAggregators(
 
 auto toIntermediateAggregators(
     core::AggregationNode const& aggregationNode,
-    exec::OperatorCtx const& operatorCtx) {
+    exec::OperatorCtx const& operatorCtx,
+    const RowTypePtr& outputType) {
   auto const step = core::AggregationNode::Step::kIntermediate;
   bool const isGlobal = aggregationNode.groupingKeys().empty();
   auto const& inputRowSchema = aggregationNode.outputType();
@@ -571,8 +572,10 @@ auto toIntermediateAggregators(
       argumentTypes.push_back(arg->type());
     }
     const auto originalName = getOriginalName(kind);
-    const auto resultType =
-        exec::Aggregate::intermediateType(originalName, argumentTypes);
+    auto const companionStep = getCompanionStep(kind, step);
+    const auto resultType = exec::isPartialOutput(companionStep)
+        ? exec::Aggregate::intermediateType(originalName, argumentTypes)
+        : outputType->childAt(i);
     aggregators.push_back(createAggregator(
         step, kind, inputIndex, constant, isGlobal, resultType));
   }
@@ -628,7 +631,7 @@ void CudfHashAggregation::initialize() {
   numAggregates_ = aggregationNode_->aggregates().size();
   aggregators_ = toAggregators(*aggregationNode_, *operatorCtx_, outputType_);
   intermediateAggregators_ =
-      toIntermediateAggregators(*aggregationNode_, *operatorCtx_);
+      toIntermediateAggregators(*aggregationNode_, *operatorCtx_, outputType_);
 
   // Check that aggregate result type match the output type.
   // TODO: This is output schema validation. In velox CPU, it's done using
