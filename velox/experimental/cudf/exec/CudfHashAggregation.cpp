@@ -328,6 +328,7 @@ struct MeanAggregator : cudf_velox::CudfHashAggregation::Aggregator {
       case core::AggregationNode::Step::kFinal: {
         auto sum = std::move(results[sumIdx_].results[0]);
         auto count = std::move(results[countIdx_].results[0]);
+        std::cout << "result type is " << resultType->toString() << std::endl;
         auto avg = cudf::binary_operation(
             *sum,
             *count,
