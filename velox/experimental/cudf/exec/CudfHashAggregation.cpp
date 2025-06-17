@@ -533,10 +533,17 @@ auto toAggregators(
     auto const inputIndex = aggInputs[0];
     auto const constant = aggConstants.empty() ? nullptr : aggConstants[0];
     auto const companionStep = getCompanionStep(kind, step);
+    std::cout << "step " << core::AggregationNode::stepName(step)
+              << "companion step"
+              << core::AggregationNode::stepName(companionStep) << "kind "
+              << kind << "exec::isPartialOutput(companionStep) "
+              << exec::isPartialOutput(companionStep) << std::endl;
     const auto originalName = getOriginalName(kind);
     const auto resultType = exec::isPartialOutput(companionStep)
         ? exec::Aggregate::intermediateType(originalName, argumentTypes)
         : outputType->childAt(i);
+
+    // const auto resultType = outputType->childAt(i);
     aggregators.push_back(createAggregator(
         companionStep, kind, inputIndex, constant, isGlobal, resultType));
   }
