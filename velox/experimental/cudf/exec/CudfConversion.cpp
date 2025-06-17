@@ -64,6 +64,13 @@ cudf::size_type preferredGpuBatchSizeRows(
       "velox.cudf.gpu_batch_size_rows must be <= max(vector_size_t)");
   return batchSize;
 }
+
+// // Cast the column if the data type mismatch.
+// std::unique_ptr<cudf::table> castColumns() {
+
+// }
+
+
 } // namespace
 
 CudfFromVelox::CudfFromVelox(
