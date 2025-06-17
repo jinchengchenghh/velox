@@ -205,9 +205,13 @@ struct MeanAggregator : cudf_velox::CudfHashAggregation::Aggregator {
         break;
       }
       case core::AggregationNode::Step::kPartial: {
+        std::cout << "avg step is partial" << std::endl;
         auto& request = requests.emplace_back();
         sumIdx_ = requests.size() - 1;
         request.values = tbl.column(inputIndex);
+        std::cout << "column type"
+                  << static_cast<int32_t>(tbl.column(inputIndex).type().id())
+                  << std::endl;
         request.aggregations.push_back(
             cudf::make_sum_aggregation<cudf::groupby_aggregation>());
         request.aggregations.push_back(
@@ -248,6 +252,7 @@ struct MeanAggregator : cudf_velox::CudfHashAggregation::Aggregator {
       case core::AggregationNode::Step::kSingle:
         return std::move(results[meanIdx_].results[0]);
       case core::AggregationNode::Step::kPartial: {
+        std::cout << "makeOutputColumn avg step is partial" << std::endl;
         auto sum = std::move(results[sumIdx_].results[0]);
         auto count = std::move(results[sumIdx_].results[1]);
 

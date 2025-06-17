@@ -119,6 +119,13 @@ RowVectorPtr CudfFilterProject::getOutput() {
               << " columns " << std::endl;
   }
 
+  for (auto col = 0; col < numColumns; col++) {
+    std::cout << "project col " << col
+              << static_cast<int32_t>(
+                     outputTable->view().column(col).type().id())
+              << std::endl;
+  }
+
   auto cudfOutput = std::make_shared<CudfVector>(
       input_->pool(), outputType_, size, std::move(outputTable), stream);
   input_.reset();
