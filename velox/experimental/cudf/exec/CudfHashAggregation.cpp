@@ -589,15 +589,14 @@ auto toIntermediateAggregators(
     }
     const auto originalName = getOriginalName(kind);
     auto const companionStep = getCompanionStep(kind, step);
-    // If it is final step, we also try to generate the
-    // intermediateAggregators_, but we cannot get the result type by
-    // exec::Aggregate::intermediateType
-    // TODO, not generate the intermediateAggregators for final stage aggregator
-    const auto resultType = exec::isPartialOutput(companionStep)
-        ? exec::Aggregate::intermediateType(originalName, argumentTypes)
-        : outputType->childAt(i);
-    aggregators.push_back(createAggregator(
-        step, kind, inputIndex, constant, isGlobal, resultType));
+    if (exec::isPartialOutput(companionStep)) {
+      const auto resultType =
+          exec::Aggregate::intermediateType(originalName, argumentTypes);
+      aggregators.push_back(createAggregator(
+          step, kind, inputIndex, constant, isGlobal, resultType));
+    } else {
+      aggregators.push_back(nullptr);
+    }
   }
   return aggregators;
 }
@@ -828,7 +827,11 @@ CudfVectorPtr CudfHashAggregation::doGroupByAggregation(
     aggregator->addGroupbyRequest(tbl->view(), requests);
   }
 
+  std::cout << "addGroupbyRequest finished" << std::endl;
+
   auto [groupKeys, results] = groupByOwner.aggregate(requests, stream);
+
+  std::cout << "groupByOwner.aggregate finished" << std::endl;
   // flatten the results
   std::vector<std::unique_ptr<cudf::column>> resultColumns;
 
