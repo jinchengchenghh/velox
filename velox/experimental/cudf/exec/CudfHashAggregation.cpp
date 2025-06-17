@@ -221,17 +221,26 @@ struct MeanAggregator : cudf_velox::CudfHashAggregation::Aggregator {
       }
       case core::AggregationNode::Step::kIntermediate:
       case core::AggregationNode::Step::kFinal: {
+        std::cout << "avg step is kIntermediate or kFinal" << std::endl;
         // In intermediate and final aggregation, the previously computed sum
         // and count are in the child columns of the input column.
         auto& request = requests.emplace_back();
         sumIdx_ = requests.size() - 1;
         request.values = tbl.column(inputIndex).child(0);
+        std::cout << "column 0 type"
+                  << static_cast<int32_t>(
+                         tbl.column(inputIndex).child(0).type().id())
+                  << std::endl;
         request.aggregations.push_back(
             cudf::make_sum_aggregation<cudf::groupby_aggregation>());
 
         auto& request2 = requests.emplace_back();
         countIdx_ = requests.size() - 1;
         request2.values = tbl.column(inputIndex).child(1);
+        std::cout << "column 1 type"
+                  << static_cast<int32_t>(
+                         tbl.column(inputIndex).child(1).type().id())
+                  << std::endl;
         // The counts are already computed in partial aggregation, so we just
         // need to sum them up again.
         request2.aggregations.push_back(
@@ -584,7 +593,7 @@ auto toIntermediateAggregators(
         ? exec::Aggregate::intermediateType(originalName, argumentTypes)
         : outputType->childAt(i);
     aggregators.push_back(createAggregator(
-        companionStep, kind, inputIndex, constant, isGlobal, resultType));
+        step, kind, inputIndex, constant, isGlobal, resultType));
   }
   return aggregators;
 }
@@ -696,6 +705,7 @@ void CudfHashAggregation::computeIntermediateGroupbyPartial(CudfVectorPtr tbl) {
 
   // If we already have partial output, concatenate the new results with it.
   if (partialOutput_) {
+    std::cout << "contains partial output" << std::endl;
     // Create a vector of tables to concatenate
     std::vector<cudf::table_view> tablesToConcat;
     tablesToConcat.push_back(partialOutput_->getTableView());
@@ -805,8 +815,12 @@ CudfVectorPtr CudfHashAggregation::doGroupByAggregation(
       ignoreNullKeys_ ? cudf::null_policy::EXCLUDE
                       : cudf::null_policy::INCLUDE);
 
+  std::cout << "agg size " << aggregators.size() << std::endl;
+
   std::vector<cudf::groupby::aggregation_request> requests;
   for (auto& aggregator : aggregators) {
+    std::cout << "agg step is "
+              << core::AggregationNode::stepName(aggregator->step) << std::endl;
     aggregator->addGroupbyRequest(tbl->view(), requests);
   }
 
@@ -904,6 +918,7 @@ RowVectorPtr CudfHashAggregation::getOutput() {
     if (partialOutput_ &&
         partialOutput_->estimateFlatSize() >
             maxPartialAggregationMemoryUsage_) {
+      std::cout << "release the output 1" << std::endl;
       // This is basically a flush of the partial output.
       return releaseAndResetPartialOutput();
     }
@@ -915,6 +930,7 @@ RowVectorPtr CudfHashAggregation::getOutput() {
     if (!partialOutput_ && finished_) {
       return nullptr;
     }
+    std::cout << "release the output 2" << std::endl;
     return releaseAndResetPartialOutput();
   }
 
@@ -944,6 +960,8 @@ RowVectorPtr CudfHashAggregation::getOutput() {
   }
 
   VELOX_CHECK_NOT_NULL(tbl);
+
+  std::cout << "agg get the output" << std::endl;
 
   if (isDistinct_) {
     return getDistinctKeys(std::move(tbl), groupingKeyInputChannels_, stream);
