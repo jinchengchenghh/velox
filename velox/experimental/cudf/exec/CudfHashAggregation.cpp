@@ -589,6 +589,10 @@ auto toIntermediateAggregators(
     }
     const auto originalName = getOriginalName(kind);
     auto const companionStep = getCompanionStep(kind, step);
+    // If it is final step, we also try to generate the
+    // intermediateAggregators_, but we cannot get the result type by
+    // exec::Aggregate::intermediateType
+    // TODO, not generate the intermediateAggregators for final stage aggregator
     const auto resultType = exec::isPartialOutput(companionStep)
         ? exec::Aggregate::intermediateType(originalName, argumentTypes)
         : outputType->childAt(i);
