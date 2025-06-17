@@ -163,9 +163,11 @@ struct CountAggregator : cudf_velox::CudfHashAggregation::Aggregator {
       rmm::cuda_stream_view stream) override {
     // cudf produces int32 for count(0) but velox expects int64
     auto col = std::move(results[outputIdx_].results[0]);
+    std::cout << "Count result type " << resultType->toString() << std::endl;
     const auto cudfOutputType =
         cudf::data_type(cudf_velox::veloxToCudfTypeId(resultType));
     if (col->type() != cudfOutputType) {
+      std::cout << "Count cast the result type " << std::endl;
       col = cudf::cast(*col, cudfOutputType, stream);
     }
     return col;
@@ -577,7 +579,7 @@ auto toIntermediateAggregators(
         ? exec::Aggregate::intermediateType(originalName, argumentTypes)
         : outputType->childAt(i);
     aggregators.push_back(createAggregator(
-        step, kind, inputIndex, constant, isGlobal, resultType));
+        companionStep, kind, inputIndex, constant, isGlobal, resultType));
   }
   return aggregators;
 }
