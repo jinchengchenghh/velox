@@ -12,16 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-  add_executable(velox_file_test FileTest.cpp FileInputStreamTest.cpp
-                UtilsTest.cpp)
-  add_test(velox_file_test velox_file_test)
-  target_link_libraries(
-  velox_file_test
-  PRIVATE
-  velox_buffer
-  velox_file
+add_library(velox_file_test_utils TestUtils.cpp FaultyFile.cpp
+                                  FaultyFileSystem.cpp)
+
+target_link_libraries(
   velox_file_test_utils
-  velox_temp_path
-  GTest::gmock
-  GTest::gtest
-  GTest::gtest_main)
+  PUBLIC velox_file)

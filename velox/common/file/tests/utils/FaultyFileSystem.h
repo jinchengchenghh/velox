@@ -20,8 +20,8 @@
 #include <functional>
 #include <memory>
 #include <string_view>
-#include "velox/common/file/tests/FaultyFile.h"
-#include "velox/common/file/tests/FaultyFileSystem.h"
+#include "velox/common/file/tests/utils/FaultyFile.h"
+#include "velox/common/file/tests/utils/FaultyFileSystem.h"
 
 namespace facebook::velox::tests::utils {
 

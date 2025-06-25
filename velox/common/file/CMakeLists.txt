@@ -25,6 +25,8 @@ velox_link_libraries(
   PUBLIC velox_exception Folly::folly
   PRIVATE velox_buffer velox_common_base fmt::fmt glog::glog)
 
-if(${VELOX_BUILD_TESTING} OR ${VELOX_BUILD_TEST_UTILS})
+if(${VELOX_BUILD_TESTING})
   add_subdirectory(tests)
+elseif(${VELOX_BUILD_TEST_UTILS})
+  add_subdirectory(tests/utils)
 endif()

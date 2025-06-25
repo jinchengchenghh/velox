@@ -17,7 +17,7 @@
 #pragma once
 
 #include "velox/common/file/File.h"
-#include "velox/common/file/tests/FaultyFileSystemOperations.h"
+#include "velox/common/file/tests/utils/FaultyFileSystemOperations.h"
 
 namespace facebook::velox::tests::utils {
 

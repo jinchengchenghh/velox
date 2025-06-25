@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "velox/common/file/tests/FaultyFileSystem.h"
+#include "velox/common/file/tests/utils/FaultyFileSystem.h"
 #include <folly/synchronization/CallOnce.h>
 
 #include <filesystem>

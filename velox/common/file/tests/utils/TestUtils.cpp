@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "velox/common/file/tests/TestUtils.h"
+#include "velox/common/file/tests/utils/TestUtils.h"
 
 namespace facebook::velox::tests::utils {
 
