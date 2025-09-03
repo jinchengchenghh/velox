@@ -120,7 +120,7 @@ class ParquetConnectorSplitBuilder {
             static_cast<uint64_t>(std::numeric_limits<cudf::size_type>::max()),
         "ParquetConnectorSplit `length` must be less than or equal to 2^31");
     length_ = length;
-    return *twhis;
+    return *this;
   }
 
   std::shared_ptr<ParquetConnectorSplit> build() const {
