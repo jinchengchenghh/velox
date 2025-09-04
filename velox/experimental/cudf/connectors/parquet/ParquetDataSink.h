@@ -49,10 +49,7 @@ class LocationHandle : public ISerializable {
   LocationHandle(
       std::string targetPath,
       TableType tableType,
-      std::string targetFileName = "")
-      : targetPath_(std::move(targetPath)),
-        targetFileName_(std::move(targetFileName)),
-        tableType_(tableType) {}
+      std::string targetFileName = "");
 
   const std::string& targetPath() const {
     return targetPath_;

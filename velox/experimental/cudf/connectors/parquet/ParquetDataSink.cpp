@@ -108,7 +108,23 @@ std::shared_ptr<memory::MemoryPool> createSortPool(
   return writerPool->addLeafChild(fmt::format("{}.sort", writerPool->name()));
 }
 
+std::string stripFilePrefix(const std::string& targetPath) {
+    const std::string prefix = "file://";
+    if (targetPath.rfind(prefix, 0) == 0) {
+        return targetPath.substr(prefix.length());
+    }
+    return targetPath;
+}
+
 } // namespace
+
+LocationHandle::LocationHandle(
+    std::string targetPath,
+    TableType tableType,
+    std::string targetFileName)
+    : targetPath_(stripFilePrefix(targetPath)),
+      targetFileName_(std::move(targetFileName)),
+      tableType_(tableType) {}
 
 const std::string LocationHandle::tableTypeName(
     LocationHandle::TableType type) {
