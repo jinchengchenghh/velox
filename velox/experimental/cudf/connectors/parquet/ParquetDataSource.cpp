@@ -263,6 +263,7 @@ void ParquetDataSource::addSplit(std::shared_ptr<ConnectorSplit> split) {
           hiveSplit->fileFormat,
           dwio::common::FileFormat::PARQUET,
           "Unsupported file format for conversion from HiveConnectorSplit to cuDF ParquetConnectorSplit");
+          // TODO: add the start and length, maybe we should not convert the HiveConnectorSplit, just throw exception.
       return ParquetConnectorSplitBuilder(hiveSplit->filePath)
           .connectorId(hiveSplit->connectorId)
           .splitWeight(hiveSplit->splitWeight)
@@ -297,6 +298,7 @@ void ParquetDataSource::addSplit(std::shared_ptr<ConnectorSplit> split) {
 
 std::unique_ptr<cudf::io::chunked_parquet_reader>
 ParquetDataSource::createSplitReader() {
+  LOG(INFO) << "Source info file path size " << split_->getCudfSourceInfo().filepaths().size() << " first split " << split_->getCudfSourceInfo().filepaths()[0];
   // Reader options
   auto readerOptions =
       cudf::io::parquet_reader_options::builder(split_->getCudfSourceInfo())
