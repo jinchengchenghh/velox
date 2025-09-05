@@ -45,22 +45,7 @@ struct ParquetConnectorSplit
       uint64_t _length =
           static_cast<uint64_t>(std::numeric_limits<cudf::size_type>::max()),
       int64_t _splitWeight = 0,
-      const std::unordered_map<std::string, std::string>& _infoColumns = {})
-      : facebook::velox::connector::ConnectorSplit(connectorId, _splitWeight),
-        filePath(_filePath),
-        start(_start),
-        length(_length),
-        cudfSourceInfo({filePath}),
-        infoColumns(_infoColumns) {
-    VELOX_CHECK(
-        start <=
-            static_cast<uint64_t>(std::numeric_limits<cudf::size_type>::max()),
-        "ParquetConnectorSplit `start` must be less than or equal to 2^31");
-    VELOX_CHECK(
-        length <=
-            static_cast<uint64_t>(std::numeric_limits<cudf::size_type>::max()),
-        "ParquetConnectorSplit `length` must be less than or equal to 2^31");
-  }
+      const std::unordered_map<std::string, std::string>& _infoColumns = {});
 
   std::string toString() const override;
   std::string getFileName() const;
