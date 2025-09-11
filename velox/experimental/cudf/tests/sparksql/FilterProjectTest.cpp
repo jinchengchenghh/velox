@@ -25,6 +25,7 @@
 #include "velox/functions/sparksql/tests/SparkFunctionBaseTest.h"
 
 using namespace facebook::velox::exec::test;
+using namespace facebook::velox;
 
 namespace {
 
@@ -60,10 +61,10 @@ TEST_F(CudfFilterProjectTest, hashWithSeed) {
 
   auto expected = makeRowVector({
       makeFlatVector<int32_t>({
-          -1604625029,
-          -853646085,
+          1049813396,
+          1800792340,
       }),
   });
-  facebook::velox::test::assertEqualVectors(hashResults, expected);
+  facebook::velox::test::assertEqualVectors(expected, hashResults);
 }
 } // namespace

@@ -788,7 +788,7 @@ class HashFunction : public CudfFunction {
  public:
   HashFunction(const std::shared_ptr<velox::exec::Expr>& expr) {
     using velox::exec::ConstantExpr;
-
+std::cout <<"start construction"<< std::endl;
     VELOX_CHECK_GE(expr->inputs().size(), 2, "hash expects at least 2 inputs");
     auto seedExpr = std::dynamic_pointer_cast<ConstantExpr>(expr->inputs()[0]);
     VELOX_CHECK_NOT_NULL(seedExpr, "hash seed must be a constant");
@@ -796,13 +796,16 @@ class HashFunction : public CudfFunction {
         seedExpr->value()->as<SimpleVector<int32_t>>()->valueAt(0);
     VELOX_CHECK_GE(seedValue, 0);
     seedValue_ = seedValue;
+    std::cout <<"end construction"<< std::endl;
   }
 
   ColumnOrView eval(
       std::vector<ColumnOrView>& inputColumns,
       rmm::cuda_stream_view stream,
       rmm::device_async_resource_ref mr) const override {
-    auto inputTableView = cudf::table_view({asView(inputColumns[1])});
+        std::cout <<"execute cudf eval"<< std::endl;
+
+    auto inputTableView = cudf::table_view({asView(inputColumns[0])});
     std::cout <<"execute cudf::hashing::murmurhash3_x86_32"<< std::endl;
     return cudf::hashing::murmurhash3_x86_32(
         inputTableView, seedValue_, stream, mr);
@@ -881,13 +884,13 @@ bool registerBuiltinFunctions(const std::string& prefix) {
   registerCudfFunction(
       prefix + "hash_with_seed",
       [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
-        return std::make_shared<SubstrFunction>(expr);
+        return std::make_shared<HashFunction>(expr);
       });
 
   registerCudfFunction(
       "hash_with_seed",
       [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
-        return std::make_shared<SubstrFunction>(expr);
+        return std::make_shared<HashFunction>(expr);
       });
 
   return true;
