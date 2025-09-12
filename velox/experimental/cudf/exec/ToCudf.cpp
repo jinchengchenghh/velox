@@ -268,6 +268,14 @@ bool CompileState::compile() {
 
     if (producesGpuOutput(oper) and
         (nextOperatorIsNotGpu or isLastOperatorOfTask)) {
+      if (FLAGS_velox_cudf_debug) {
+        if (nextOperatorIsNotGpu && !isLastOperatorOfTask) {
+          // LOG the fallback node.
+          auto planNode = getPlanNode(oper->planNodeId());
+          std::cout << "The node not supported is "
+              << planNode->toString() << std::endl;
+        }
+      }
       auto planNode = getPlanNode(oper->planNodeId());
       replaceOp.push_back(std::make_unique<CudfToVelox>(
           id, planNode->outputType(), ctx, planNode->id() + "-to-velox"));
