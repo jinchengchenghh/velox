@@ -315,6 +315,12 @@ struct CudfDriverAdapter {
   // Call operator needed by DriverAdapter
   bool operator()(const exec::DriverFactory& factory, exec::Driver& driver) {
     if (!driver.driverCtx()->queryConfig().get<bool>(kCudfEnabled, true)) {
+      if (FLAGS_velox_cudf_debug) {
+        std::cout << "Cudf is disabled by session config for plan:"<< std::endl;
+        for (auto node : factory.planNodes) {
+          std::cout << node->toString() << std::endl;
+        }
+      }
       return false;
     }
     auto state = CompileState(factory, driver);
