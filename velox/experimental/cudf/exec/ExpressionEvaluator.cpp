@@ -15,6 +15,7 @@
  */
 #include "velox/experimental/cudf/exec/ExpressionEvaluator.h"
 #include "velox/experimental/cudf/exec/ToCudf.h"
+#include "velox/experimental/cudf/exec/Validation.h"
 
 #include "velox/expression/ConstantExpr.h"
 #include "velox/expression/FieldReference.h"
@@ -289,8 +290,12 @@ bool canBeEvaluated(const std::shared_ptr<velox::exec::Expr>& expr) {
     return std::all_of(
         expr->inputs().begin(), expr->inputs().end(), canBeEvaluated);
   }
-  return std::dynamic_pointer_cast<velox::exec::FieldReference>(expr) !=
-      nullptr;
+  if (std::dynamic_pointer_cast<velox::exec::FieldReference>(expr) == nullptr) {
+    LOG_VALIDATION_MSG("The expression {} is not supported", name);
+    return false;
+  }
+
+  return true;
 }
 
 } // namespace detail
@@ -960,10 +965,11 @@ void addPrecomputedColumns(
           stream,
           cudf::get_current_device_resource_ref());
       if (std::holds_alternative<cudf::column_view>(result)) {
-        inputTableColumns.emplace_back(std::make_unique<cudf::column>(
-            std::get<cudf::column_view>(result),
-            stream,
-            cudf::get_current_device_resource_ref()));
+        inputTableColumns.emplace_back(
+            std::make_unique<cudf::column>(
+                std::get<cudf::column_view>(result),
+                stream,
+                cudf::get_current_device_resource_ref()));
       } else {
         inputTableColumns.emplace_back(
             std::move(std::get<std::unique_ptr<cudf::column>>(result)));
@@ -1450,10 +1456,12 @@ cudf::ast::expression const& createAstFromSubfieldFilter(
     case common::FilterKind::kBoolValue: {
       auto* boolValue = static_cast<const common::BoolValue*>(&filter);
       auto matchesTrue = boolValue->testBool(true);
-      scalars.emplace_back(std::make_unique<cudf::numeric_scalar<bool>>(
-          matchesTrue, true, stream, mr));
-      auto const& matchesBoolExpr = tree.push(cudf::ast::literal{
-          *static_cast<cudf::numeric_scalar<bool>*>(scalars.back().get())});
+      scalars.emplace_back(
+          std::make_unique<cudf::numeric_scalar<bool>>(
+              matchesTrue, true, stream, mr));
+      auto const& matchesBoolExpr = tree.push(
+          cudf::ast::literal{
+              *static_cast<cudf::numeric_scalar<bool>*>(scalars.back().get())});
       return tree.push(Operation{Op::EQUAL, columnRef, matchesBoolExpr});
     }
 
