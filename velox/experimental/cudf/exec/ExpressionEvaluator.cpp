@@ -277,6 +277,7 @@ const std::unordered_set<std::string> supportedOps = {
     "like",
     "cardinality",
     "split",
+    "isnotnull",
     "lower",
     "hash_with_seed"};
 
@@ -630,6 +631,11 @@ cudf::ast::expression const& AstContext::pushExprToTree(
         addPrecomputeInstructionOnSide(0, 0, "cardinality", "", node);
 
     return tree.push(Operation{Op::CAST_TO_INT64, colRef});
+  } else if (name == "isnotnull") {
+    VELOX_CHECK_EQ(len, 1);
+    auto const& op1 = pushExprToTree(expr->inputs()[0]);
+    auto const& nullOp = tree.push(Operation{Op::IS_NULL, op1});
+    return tree.push(Operation{Op::NOT, nullOp});
   } else if (name == "split") {
     VELOX_CHECK_EQ(len, 3);
     auto node = CudfExpressionNode::create(expr);
