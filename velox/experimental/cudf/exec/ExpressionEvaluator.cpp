@@ -809,7 +809,7 @@ std::cout <<"start construction"<< std::endl;
 
  private:
 
-cudf::table_view convertToTableView(std::vector<ColumnOrView>& inputColumns) {
+cudf::table_view convertToTableView(const std::vector<ColumnOrView>& inputColumns) {
     std::vector<cudf::column_view> columns;
     columns.reserve(inputColumns.size());
 
