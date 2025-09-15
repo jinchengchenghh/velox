@@ -632,8 +632,6 @@ cudf::ast::expression const& AstContext::pushExprToTree(
     auto node = CudfExpressionNode::create(expr);
     return addPrecomputeInstructionOnSide(0, 0, "split", "", node);
   } else if (name == "hash_with_seed") {
-    // Only supports hash one value now.
-    VELOX_CHECK_EQ(len, 2);
     auto node = CudfExpressionNode::create(expr);
     return addPrecomputeInstructionOnSide(0, 0, "hash_with_seed", "", node);
   } else if (auto fieldExpr = std::dynamic_pointer_cast<FieldReference>(expr)) {
@@ -803,15 +801,25 @@ std::cout <<"start construction"<< std::endl;
       std::vector<ColumnOrView>& inputColumns,
       rmm::cuda_stream_view stream,
       rmm::device_async_resource_ref mr) const override {
-        std::cout <<"execute cudf eval"<< std::endl;
-
-    auto inputTableView = cudf::table_view({asView(inputColumns[0])});
-    std::cout <<"execute cudf::hashing::murmurhash3_x86_32"<< std::endl;
+    VELOX_CHECK(!inputColumns.empty());
+    auto inputTableView = convertToTableView(inputColumns);
     return cudf::hashing::murmurhash3_x86_32(
         inputTableView, seedValue_, stream, mr);
   }
 
  private:
+
+cudf::table_view convertToTableView(std::vector<ColumnOrView>& inputColumns) {
+    std::vector<cudf::column_view> columns;
+    columns.reserve(inputColumns.size());
+
+    for (auto& col : inputColumns) {
+        columns.push_back(asView(col));
+    }
+
+    return cudf::table_view(columns);
+}
+
   uint32_t seedValue_;
 };
 
