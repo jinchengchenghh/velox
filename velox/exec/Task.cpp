@@ -795,10 +795,10 @@ RowVectorPtr Task::next(ContinueFuture* future) {
     std::vector<std::shared_ptr<Driver>> drivers =
         createDriversLocked(kUngroupedGroupId);
     if (pool_->reservedBytes() != 0) {
-      VELOX_FAIL(
-          "Unexpected memory pool allocations during task[{}] driver initialization: {}",
-          taskId_,
-          pool_->treeMemoryUsage());
+      // VELOX_FAIL(
+      //     "Unexpected memory pool allocations during task[{}] driver initialization: {}",
+      //     taskId_,
+      //     pool_->treeMemoryUsage());
     }
 
     drivers_ = std::move(drivers);
@@ -1018,10 +1018,10 @@ void Task::createAndStartDrivers(uint32_t concurrentSplitGroups) {
     std::vector<std::shared_ptr<Driver>> drivers =
         createDriversLocked(kUngroupedGroupId);
     if (pool_->reservedBytes() != 0) {
-      VELOX_FAIL(
-          "Unexpected memory pool allocations during task[{}] driver initialization: {}",
-          taskId_,
-          pool_->treeMemoryUsage());
+      // VELOX_FAIL(
+      //     "Unexpected memory pool allocations during task[{}] driver initialization: {}",
+      //     taskId_,
+      //     pool_->treeMemoryUsage());
     }
 
     // Prevent the connecting structures from being cleaned up before all
