@@ -66,7 +66,7 @@ class CudfTopN : public exec::Operator, public NvtxHelper {
   // rows in topNBatches_ >= count_. Once all inputs are available, we concat
   // the topNBatches_ and get the topN rows.
   std::vector<CudfVectorPtr> topNBatches_;
-  static constexpr size_t kBatchSize_{5};
+  static constexpr size_t kBatchSize_{10000000};
   bool finished_ = false;
 };
 } // namespace facebook::velox::cudf_velox
