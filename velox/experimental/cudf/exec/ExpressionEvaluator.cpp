@@ -39,6 +39,7 @@
 #include <cudf/strings/split/split.hpp>
 #include <cudf/table/table.hpp>
 #include <cudf/transform.hpp>
+#include <cudf/replace.hpp>
 
 #include <limits>
 #include <type_traits>
@@ -335,6 +336,7 @@ const std::unordered_set<std::string> supportedOps = {
     "between",
     "in",
     "cast",
+    "coalesce",
     "switch",
     "year",
     "length",
@@ -706,6 +708,9 @@ cudf::ast::expression const& AstContext::pushExprToTree(
     VELOX_CHECK_EQ(len, 3);
     auto node = CudfExpressionNode::create(expr);
     return addPrecomputeInstructionOnSide(0, 0, "split", "", node);
+  } else if (name == "coalesce") {
+    auto node = CudfExpressionNode::create(expr);
+    return addPrecomputeInstructionOnSide(0, 0, "coalesce", "", node);
   } else if (name == "hash_with_seed") {
     auto node = CudfExpressionNode::create(expr);
     return addPrecomputeInstructionOnSide(0, 0, "hash_with_seed", "", node);
@@ -843,6 +848,71 @@ class BinaryFunction : public CudfFunction {
   const cudf::data_type type_;
   std::unique_ptr<cudf::scalar> left_;
   std::unique_ptr<cudf::scalar> right_;
+};
+
+class CoalesceFunction : public CudfFunction {
+ public:
+  CoalesceFunction(const std::shared_ptr<velox::exec::Expr>& expr) {
+    using velox::exec::ConstantExpr;
+
+    // Storing the first literal that appears in inputs because we don't need to
+    // process after that. This is the last fallback.
+    numColumnsBeforeLiteral_ = expr->inputs().size();
+    for (size_t i = 0; i < expr->inputs().size(); ++i) {
+      const auto& input = expr->inputs()[i];
+      if (input->name() == "literal") {
+        auto c = std::dynamic_pointer_cast<ConstantExpr>(input);
+        if (c && c->value()) {
+          std::vector<std::unique_ptr<cudf::scalar>> scalars;
+          (void)createLiteral(c->value(), scalars);
+          if (!scalars.empty()) {
+            literalScalar_ = std::move(scalars.back());
+            numColumnsBeforeLiteral_ = i;
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  ColumnOrView eval(
+      std::vector<ColumnOrView>& inputColumns,
+      rmm::cuda_stream_view stream,
+      rmm::device_async_resource_ref mr) const override {
+    // Coalesce is practically a cudf::replace_nulls over multiple columns.
+    // Starting from first column, we keep calling replace nulls with subsequent
+    // cols until we get an all valid col or run out of columns
+
+    // If a literal comes before any column input, fill the result with it.
+    if (literalScalar_ && numColumnsBeforeLiteral_ == 0) {
+      if (inputColumns.empty()) {
+        // We need at least one column to tell us the required output size
+        VELOX_NYI("coalesce with only literal inputs is not supported");
+      }
+      auto size = asView(inputColumns[0]).size();
+      return cudf::make_column_from_scalar(*literalScalar_, size, stream, mr);
+    }
+
+    VELOX_CHECK(
+        !inputColumns.empty(),
+        "coalesce requires at least one non-literal input");
+    ColumnOrView result = asView(inputColumns[0]);
+    size_t stop = std::min(numColumnsBeforeLiteral_, inputColumns.size());
+    for (size_t i = 1; i < stop && asView(result).has_nulls(); ++i) {
+      result = cudf::replace_nulls(
+          asView(result), asView(inputColumns[i]), stream, mr);
+    }
+
+    if (literalScalar_ && asView(result).has_nulls()) {
+      result = cudf::replace_nulls(asView(result), *literalScalar_, stream, mr);
+    }
+
+    return result;
+  }
+
+ private:
+  size_t numColumnsBeforeLiteral_;
+  std::unique_ptr<cudf::scalar> literalScalar_;
 };
 
 class SwitchFunction : public CudfFunction {
@@ -1105,7 +1175,11 @@ bool registerBuiltinFunctions(const std::string& prefix) {
       [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
         return std::make_shared<SwitchFunction>(expr);
       });
-
+  registerCudfFunction(
+      prefix + "coalesce",
+      [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
+        return std::make_shared<CoalesceFunction>(expr);
+      });
   return true;
 }
 
