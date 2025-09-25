@@ -124,7 +124,7 @@ void CudfTopN::addInput(RowVectorPtr input) {
     auto stream = cudfGlobalStreamPool().get_stream();
     auto mr = cudf::get_current_device_resource_ref();
     auto result = getTopK(
-        getConcatenatedTable(topNBatches_, outputType_, stream)->view(),
+        getConcatenatedTable(topNBatches_, stream)->view(),
         count_,
         stream,
         mr);
@@ -146,7 +146,7 @@ RowVectorPtr CudfTopN::getOutput() {
   auto stream = topNBatches_[0]->stream();
   auto mr = cudf::get_current_device_resource_ref();
   auto result = getTopK(
-      getConcatenatedTable(topNBatches_, outputType_, stream)->view(),
+      getConcatenatedTable(topNBatches_, stream)->view(),
       count_,
       stream,
       mr);
