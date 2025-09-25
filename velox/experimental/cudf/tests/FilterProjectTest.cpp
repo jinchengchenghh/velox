@@ -637,6 +637,7 @@ TEST_F(CudfFilterProjectTest, mixedInOperation) {
 }
 
 TEST_F(CudfFilterProjectTest, round) {
+<<<<<<< HEAD
   auto data = makeRowVector({makeFlatVector<int64_t>({4123, 456789098})});
   parse::ParseOptions options;
   options.parseIntegerAsBigint = false;
@@ -660,6 +661,18 @@ TEST_F(CudfFilterProjectTest, round) {
                   .planNode();
   auto expected = makeRowVector({makeFlatVector<int64_t>({4000, 456789000})});
   AssertQueryBuilder(plan).assertResults(expected);
+=======
+  vector_size_t batchSize = 1000;
+  auto vectors = makeVectors(DOUBLE(), 2, batchSize);
+  createDuckDbTable(vectors);
+
+  auto plan = PlanBuilder()
+                  .values(vectors)
+                  .project({"round(c0) as c1"})
+                  .planNode();
+
+  assertQuery(plan, "SELECT round(c0) FROM tmp");
+>>>>>>> c7430d40a (feat(cudf): Support round function)
 }
 
 TEST_F(CudfFilterProjectTest, simpleFilter) {

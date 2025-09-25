@@ -1224,6 +1224,12 @@ bool registerBuiltinFunctions(const std::string& prefix) {
         return std::make_shared<RoundFunction>(expr);
       });
 
+  registerCudfFunction(
+      prefix + "round",
+      [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
+        return std::make_shared<RoundFunction>(expr);
+      });
+
   return true;
 }
 
