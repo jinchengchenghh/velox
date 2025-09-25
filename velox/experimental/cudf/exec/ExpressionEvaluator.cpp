@@ -337,6 +337,7 @@ const std::unordered_set<std::string> supportedOps = {
     "between",
     "in",
     "cast",
+    "try_cast",
     "coalesce",
     "switch",
     "year",
@@ -613,7 +614,7 @@ cudf::ast::expression const& AstContext::pushExprToTree(
     } else if (expr->type()->kind() == TypeKind::DOUBLE) {
       return tree.push(Operation{Op::CAST_TO_FLOAT64, op1});
     } else {
-      VELOX_FAIL("Unsupported type for cast operation");
+      VELOX_FAIL("Unsupported type for cast operation, cast {} to {}", expr->inputs()[0]->type()->toString(), expr->type());
     }
   } else if (name == "switch") {
     VELOX_CHECK_EQ(len, 3);
