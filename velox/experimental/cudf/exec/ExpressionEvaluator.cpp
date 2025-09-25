@@ -32,6 +32,7 @@
 #include <cudf/datetime.hpp>
 #include <cudf/hashing.hpp>
 #include <cudf/lists/count_elements.hpp>
+#include <cudf/round.hpp>
 #include <cudf/strings/attributes.hpp>
 #include <cudf/strings/case.hpp>
 #include <cudf/strings/contains.hpp>
@@ -345,6 +346,7 @@ const std::unordered_set<std::string> supportedOps = {
     "cardinality",
     "split",
     "isnotnull",
+    "round",
     "lower",
     "hash_with_seed"};
 
@@ -704,6 +706,9 @@ cudf::ast::expression const& AstContext::pushExprToTree(
     auto const& op1 = pushExprToTree(expr->inputs()[0]);
     auto const& nullOp = tree.push(Operation{Op::IS_NULL, op1});
     return tree.push(Operation{Op::NOT, nullOp});
+  } else if (name == "round") {
+    auto node = CudfExpressionNode::create(expr);
+    return addPrecomputeInstructionOnSide(0, 0, "round", "", node);
   } else if (name == "split") {
     VELOX_CHECK_EQ(len, 3);
     auto node = CudfExpressionNode::create(expr);
@@ -775,6 +780,28 @@ class SplitFunction : public CudfFunction {
  private:
   std::unique_ptr<cudf::string_scalar> delimiterScalar_;
   cudf::size_type maxSplitCount_;
+};
+
+class RoundFunction : public CudfFunction {
+ public:
+  explicit RoundFunction(const std::shared_ptr<velox::exec::Expr>& expr) {
+    VELOX_CHECK(expr->inputs().size() == 1, "round expects 1 input");
+  }
+
+  ColumnOrView eval(
+      std::vector<ColumnOrView>& inputColumns,
+      rmm::cuda_stream_view stream,
+      rmm::device_async_resource_ref mr) const override {
+
+    auto result = cudf::round(
+        asView(inputColumns[0]),
+        /*decimal_places=*/0,
+        cudf::rounding_method::HALF_UP,
+        stream,
+        mr);
+    return result;
+  }
+
 };
 
 class CardinalityFunction : public CudfFunction {
@@ -1180,6 +1207,13 @@ bool registerBuiltinFunctions(const std::string& prefix) {
       [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
         return std::make_shared<CoalesceFunction>(expr);
       });
+
+  registerCudfFunction(
+      prefix + "round",
+      [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
+        return std::make_shared<RoundFunction>(expr);
+      });
+
   return true;
 }
 
