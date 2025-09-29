@@ -337,7 +337,9 @@ const std::unordered_set<std::string> supportedOps = {
     "between",
     "in",
     "cast",
+    "date_add",
     "try_cast",
+    "if",
     "coalesce",
     "switch",
     "year",
@@ -614,7 +616,8 @@ cudf::ast::expression const& AstContext::pushExprToTree(
     } else if (expr->type()->kind() == TypeKind::DOUBLE) {
       return tree.push(Operation{Op::CAST_TO_FLOAT64, op1});
     } else {
-      VELOX_FAIL("Unsupported type for cast operation, cast {} to {}", expr->inputs()[0]->type()->toString(), expr->type());
+      auto node = CudfExpressionNode::create(expr);
+      return addPrecomputeInstructionOnSide(0, 0, name, "", node);
     }
   } else if (name == "switch") {
     VELOX_CHECK_EQ(len, 3);
@@ -813,6 +816,28 @@ class RoundFunction : public CudfFunction {
   private:
     int32_t scale_ = 0;
 };
+
+class CastFunction : public CudfFunction {
+ public:
+  CastFunction(const std::shared_ptr<velox::exec::Expr>& expr) {
+    VELOX_CHECK_EQ(expr->inputs().size(), 1, "cast expects exactly 1 input");
+
+    targetCudfType_ = cudf::data_type(
+        cudf_velox::veloxToCudfTypeId(expr->type()));
+  }
+
+  ColumnOrView eval(
+      std::vector<ColumnOrView>& inputColumns,
+      rmm::cuda_stream_view stream,
+      rmm::device_async_resource_ref mr) const override {
+    auto inputCol = asView(inputColumns[0]);
+    return cudf::cast(inputCol, targetCudfType_, stream, mr);
+  }
+
+ private:
+  cudf::data_type targetCudfType_;
+};
+
 
 class CardinalityFunction : public CudfFunction {
  public:
@@ -1228,6 +1253,12 @@ bool registerBuiltinFunctions(const std::string& prefix) {
       prefix + "round",
       [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
         return std::make_shared<RoundFunction>(expr);
+      });
+
+  registerCudfFunction(
+      {prefix + "try_cast", prefix + "cast"}
+      [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
+        return std::make_shared<CastFunction>(expr);
       });
 
   return true;
