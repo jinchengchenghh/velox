@@ -682,6 +682,9 @@ cudf::ast::expression const& AstContext::pushExprToTree(
     // Build a cudf expression node for recursive evaluation
     auto node = CudfExpressionNode::create(expr);
     return addPrecomputeInstructionOnSide(0, 0, "substr", "", node);
+  } else if (name == "date_add") {
+    auto node = CudfExpressionNode::create(expr);
+    return addPrecomputeInstructionOnSide(0, 0, name, "", node);
   } else if (name == "like") {
     VELOX_CHECK_EQ(len, 2);
 
@@ -838,7 +841,6 @@ class CastFunction : public CudfFunction {
   cudf::data_type targetCudfType_;
 };
 
-
 class CardinalityFunction : public CudfFunction {
  public:
   CardinalityFunction(const std::shared_ptr<velox::exec::Expr>& expr) {
@@ -975,6 +977,16 @@ class CoalesceFunction : public CudfFunction {
  private:
   size_t numColumnsBeforeLiteral_;
   std::unique_ptr<cudf::scalar> literalScalar_;
+};
+
+// Spark date_add, for the presto date_add, the first value is unit string,
+// may need to get the function with prefix, if the prefix is "", it is Spark function.
+class DateAddFunction : public BinaryFunction {
+ public:
+  DateAddFunction(const std::shared_ptr<velox::exec::Expr>& expr): BinaryFunction(expr, cudf::binary_operator::ADD)  {
+    VELOX_CHECK(expr->inputs()->type()->isDate(),
+        "First argument to date_add must be a date");
+  }
 };
 
 class SwitchFunction : public CudfFunction {
@@ -1259,6 +1271,12 @@ bool registerBuiltinFunctions(const std::string& prefix) {
       {prefix + "try_cast", prefix + "cast"}
       [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
         return std::make_shared<CastFunction>(expr);
+      });
+
+    registerCudfFunction(
+      prefix + "date_add",
+      [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
+        return std::make_shared<DateAddFunction>(expr);
       });
 
   return true;
