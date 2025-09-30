@@ -1248,6 +1248,13 @@ bool registerBuiltinFunctions(const std::string& prefix) {
         return std::make_shared<BinaryFunction>(
             expr, cudf::binary_operator::DIV);
       });
+      
+    registerCudfFunctions(
+      {prefix + "add", prefix + "plus"},
+      [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
+        return std::make_shared<BinaryFunction>(
+            expr, cudf::binary_operator::ADD);
+      });
 
   registerCudfFunction(
       prefix + "switch",
