@@ -41,6 +41,7 @@
 #include <cudf/table/table.hpp>
 #include <cudf/transform.hpp>
 #include <cudf/replace.hpp>
+#include <cudf/unary.hpp>
 
 #include <limits>
 #include <type_traits>
@@ -827,6 +828,10 @@ class CastFunction : public CudfFunction {
 
     targetCudfType_ = cudf::data_type(
         cudf_velox::veloxToCudfTypeId(expr->type()));
+    auto sourceType = cudf::data_type(
+        cudf_velox::veloxToCudfTypeId(expr->inputs()[0]->type()));
+    VELOX_CHECK(cudf::is_supported_cast(sourceType, targetCudfType_), "Cast from {} to {} is not supported",
+      expr->inputs()[0]->type()->toString(), expr->type()->toString());
   }
 
   ColumnOrView eval(
@@ -1267,7 +1272,7 @@ bool registerBuiltinFunctions(const std::string& prefix) {
         return std::make_shared<RoundFunction>(expr);
       });
 
-  registerCudfFunction(
+  registerCudfFunctions(
       {prefix + "try_cast", prefix + "cast"},
       [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
         return std::make_shared<CastFunction>(expr);
