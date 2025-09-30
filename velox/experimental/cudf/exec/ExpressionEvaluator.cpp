@@ -38,6 +38,7 @@
 
 #include <limits>
 #include <type_traits>
+#include <iostream>
 
 namespace facebook::velox::cudf_velox {
 namespace {
@@ -799,8 +800,10 @@ class HashFunction : public CudfFunction {
       rmm::device_async_resource_ref mr) const override {
     VELOX_CHECK(!inputColumns.empty());
     auto inputTableView = convertToTableView(inputColumns);
-    return cudf::hashing::murmurhash3_x86_32(
+    auto col = cudf::hashing::murmurhash3_x86_32(
         inputTableView, seedValue_, stream, mr);
+    std::cout <<"cudf table data type is " << static_cast<int32_t>(col->type().id())<< std::endl;
+    return col;
   }
 
  private:
