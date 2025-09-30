@@ -984,7 +984,7 @@ class CoalesceFunction : public CudfFunction {
 class DateAddFunction : public BinaryFunction {
  public:
   DateAddFunction(const std::shared_ptr<velox::exec::Expr>& expr): BinaryFunction(expr, cudf::binary_operator::ADD)  {
-    VELOX_CHECK(expr->inputs()->type()->isDate(),
+    VELOX_CHECK(expr->inputs()[0]->type()->isDate(),
         "First argument to date_add must be a date");
   }
 };
@@ -1268,7 +1268,7 @@ bool registerBuiltinFunctions(const std::string& prefix) {
       });
 
   registerCudfFunction(
-      {prefix + "try_cast", prefix + "cast"}
+      {prefix + "try_cast", prefix + "cast"},
       [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
         return std::make_shared<CastFunction>(expr);
       });
