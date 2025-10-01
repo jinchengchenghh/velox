@@ -132,6 +132,19 @@ RowVectorPtr toVeloxColumn(
   auto& arrowArray = arrowDeviceArray->array;
 
   auto arrowSchema = cudf::to_arrow_schema(table, metadata);
+   // Print arrowSchema info
+  std::cout << "Arrow Schema:\n" << arrowSchema->ToString() << std::endl;
+
+  // Print cudf::table_view info
+  std::cout << "cudf::table_view info:" << std::endl;
+  std::cout << "Number of columns: " << table.num_columns() << std::endl;
+  std::cout << "Number of rows: " << table.num_rows() << std::endl;
+  
+  for (size_t i = 0; i < table.num_columns(); ++i) {
+    auto col = table.column(i);
+    std::cout << "Column " << i << ": dtype = " << static_cast<int>(col.type().id())
+              << ", size = " << col.size() << std::endl;
+  }
   auto veloxTable = importFromArrowAsOwner(*arrowSchema, arrowArray, pool);
   // BaseVector to RowVector
   auto castedPtr =

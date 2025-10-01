@@ -1261,7 +1261,6 @@ TypePtr importFromArrowImpl(
   VELOX_CHECK_NOT_NULL(format);
 
   std::cout <<"importFromArrowImpl format" << format << std::endl;
-  std::cout <<"importFromArrowImpl format" << std::string_view(format, 1) << std::endl;
 
   switch (format[0]) {
     case 'b':
