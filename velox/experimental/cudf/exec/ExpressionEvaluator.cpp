@@ -35,6 +35,7 @@
 #include <cudf/strings/split/split.hpp>
 #include <cudf/table/table.hpp>
 #include <cudf/transform.hpp>
+#include <cudf/unary.hpp>
 
 #include <limits>
 #include <type_traits>
