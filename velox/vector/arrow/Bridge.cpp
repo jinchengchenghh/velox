@@ -1697,6 +1697,7 @@ VectorPtr createDictionaryVector(
   auto indices = wrapInBufferView(
       arrowArray.buffers[1], arrowArray.length * sizeof(vector_size_t));
   auto type = importFromArrow(*arrowSchema.dictionary);
+  std::cout <<"createDictionaryVector type" << type->toString()<< std::endl;
   auto wrapped = importFromArrowImpl(
       *arrowSchema.dictionary, *arrowArray.dictionary, pool, isViewer);
   return BaseVector::wrapInDictionary(
@@ -1936,6 +1937,7 @@ VectorPtr importFromArrowImpl(
 
   // First parse and generate a Velox type.
   auto type = importFromArrow(arrowSchema);
+  std::cout <<"importFromArrowImpl type" << type->toString()<< std::endl;
 
   // Wrap the nulls buffer into a Velox BufferView (zero-copy). Null buffer size
   // needs to be at least one bit per element.
