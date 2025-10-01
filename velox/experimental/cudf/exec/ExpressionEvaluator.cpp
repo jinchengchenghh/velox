@@ -15,6 +15,7 @@
  */
 #include "velox/experimental/cudf/exec/ExpressionEvaluator.h"
 #include "velox/experimental/cudf/exec/ToCudf.h"
+#include "velox/experimental/cudf/exec/DebugUtil.h"
 
 #include "velox/expression/ConstantExpr.h"
 #include "velox/expression/FieldReference.h"
@@ -36,6 +37,7 @@
 #include <cudf/table/table.hpp>
 #include <cudf/transform.hpp>
 #include <cudf/unary.hpp>
+
 
 #include <limits>
 #include <type_traits>
@@ -804,6 +806,8 @@ class HashFunction : public CudfFunction {
       rmm::device_async_resource_ref mr) const override {
     VELOX_CHECK(!inputColumns.empty());
     auto inputTableView = convertToTableView(inputColumns);
+    DebugUtil util;
+    std::cout <<"cudf table input is " << util.toString(inputTableView, stream, 0, 100)<< std::endl;
     auto col = cudf::hashing::murmurhash3_x86_32(
         inputTableView, seedValue_, stream, mr);
     std::cout <<"cudf table data type is " << static_cast<int32_t>(col->type().id())<< std::endl;
