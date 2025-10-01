@@ -122,6 +122,16 @@ std::unique_ptr<cudf::table> toCudfTable(
 }
 
 namespace {
+  void printArrowSchemaFormats(const ArrowSchema* schema, int indent = 0) {
+  std::string prefix(indent * 2, ' ');
+  std::cout << prefix << "Format: " << schema->format
+            << ", Name: " << (schema->name ? schema->name : "null") << std::endl;
+  
+  for (int64_t i = 0; i < schema->n_children; ++i) {
+    printArrowSchemaFormats(schema->children[i], indent + 1);
+  }
+}
+
 
 RowVectorPtr toVeloxColumn(
     const cudf::table_view& table,
@@ -133,7 +143,7 @@ RowVectorPtr toVeloxColumn(
 
   auto arrowSchema = cudf::to_arrow_schema(table, metadata);
    // Print arrowSchema info
-  std::cout << "Arrow Schema:\n" << arrowSchema->ToString() << std::endl;
+  std::cout << "Arrow Schema:\n" << printArrowSchemaFormats(arrowSchema) << std::endl;
 
   // Print cudf::table_view info
   std::cout << "cudf::table_view info:" << std::endl;
