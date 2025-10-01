@@ -807,7 +807,7 @@ class HashFunction : public CudfFunction {
     auto col = cudf::hashing::murmurhash3_x86_32(
         inputTableView, seedValue_, stream, mr);
     std::cout <<"cudf table data type is " << static_cast<int32_t>(col->type().id())<< std::endl;
-    return cudf::cast(col, cudf::data_type(cudf::type_id::INT32), stream, mr);
+    return cudf::cast(col->view(), cudf::data_type(cudf::type_id::INT32), stream, mr);
     // return col;
   }
 
