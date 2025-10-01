@@ -283,6 +283,7 @@ const std::unordered_set<std::string> supportedOps = {
 namespace detail {
 
 bool canBeEvaluated(const std::shared_ptr<velox::exec::Expr>& expr) {
+  std::cout <<"canBeEvaluated check " << expr->name()<< std::endl;
   const auto name =
       stripPrefix(expr->name(), CudfOptions::getInstance().prefix());
   if (supportedOps.count(name) || binaryOps.count(name) ||
@@ -290,6 +291,7 @@ bool canBeEvaluated(const std::shared_ptr<velox::exec::Expr>& expr) {
     return std::all_of(
         expr->inputs().begin(), expr->inputs().end(), canBeEvaluated);
   }
+  std::cout <<"canBeEvaluated not " << expr->name()<< std::endl;
   return std::dynamic_pointer_cast<velox::exec::FieldReference>(expr) !=
       nullptr;
 }
@@ -631,6 +633,7 @@ cudf::ast::expression const& AstContext::pushExprToTree(
     auto node = CudfExpressionNode::create(expr);
     return addPrecomputeInstructionOnSide(0, 0, "split", "", node);
   } else if (name == "hash_with_seed") {
+    std::cout <<"create hash_with_seed node"<< std::endl;
     auto node = CudfExpressionNode::create(expr);
     return addPrecomputeInstructionOnSide(0, 0, "hash_with_seed", "", node);
   } else if (auto fieldExpr = std::dynamic_pointer_cast<FieldReference>(expr)) {
