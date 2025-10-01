@@ -143,7 +143,8 @@ RowVectorPtr toVeloxColumn(
 
   auto arrowSchema = cudf::to_arrow_schema(table, metadata);
    // Print arrowSchema info
-  std::cout << "Arrow Schema:\n" << printArrowSchemaFormats(arrowSchema.get()) << std::endl;
+  std::cout << "Arrow Schema:\n" ;
+  printArrowSchemaFormats(arrowSchema.get());
 
   // Print cudf::table_view info
   std::cout << "cudf::table_view info:" << std::endl;
