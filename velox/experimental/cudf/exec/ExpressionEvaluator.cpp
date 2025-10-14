@@ -46,7 +46,7 @@ namespace facebook::velox::cudf_velox {
 namespace {
 
 template <typename T>
-cudf::ast::literal makeLiteralFromScalar(const cudf::scalar& scalar, const TypePtr& type) {
+cudf::ast::literal makeLiteralFromScalar(cudf::scalar& scalar, const TypePtr& type) {
   if constexpr (cudf::is_fixed_width<T>()) {
     if (type->isIntervalDayTime()) {
       using CudfDurationType = cudf::duration_ms;
@@ -144,10 +144,13 @@ cudf::ast::literal makeScalarAndLiteral(
     const variant& var,
     std::vector<std::unique_ptr<cudf::scalar>>& scalars) {
   using T = typename TypeTraits<kind>::NativeType;
-  T value = var.value<T>();
-  auto scalar = makeScalarFromValue(type, value, false);
-  scalars.emplace_back(std::move(scalar));
-  return makeLiteralFromScalar<T>(*(scalars.back()), type);
+  if constexpr (cudf::is_fixed_width<T>() || kind == TypeKind::VARCHAR) {
+      auto value = var.value<T>();
+      auto scalar = makeScalarFromValue(type, value, false);
+      scalars.emplace_back(std::move(scalar));
+      return makeLiteralFromScalar<T>(*(scalars.back()), type);
+  }
+  VELOX_NYI("Scalar creation not implemented for type " + type->toString());
 }
 
 cudf::ast::literal createLiteral(
