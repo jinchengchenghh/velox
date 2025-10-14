@@ -992,7 +992,7 @@ TEST_F(CudfFilterProjectTest, substrWithLength) {
       SubstrResults, calculatedSubstrResults);
 }
 
-TEST_F(CudfFilterProjectTest, DISABLED_switchExpr) {
+TEST_F(CudfFilterProjectTest, switchExpr) {
   auto data = makeRowVector(
       {makeFlatVector<double>({45676567.78, 6789098767.90876, -2.34}),
        makeFlatVector<double>({123.4, 124.5, 1678})});
