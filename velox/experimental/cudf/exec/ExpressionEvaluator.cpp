@@ -72,8 +72,7 @@ cudf::ast::literal makeLiteralFromScalar(const cudf::scalar& scalar, const TypeP
   } else {
     // TODO for non-numeric types too.
     VELOX_NYI(
-        "Non-numeric types not yet implemented for kind " +
-        mapTypeKindToName(kind));
+        "Non-numeric types not yet implemented for type {}", type->toString());
   }
 }
 
@@ -144,11 +143,11 @@ cudf::ast::literal makeScalarAndLiteral(
     const TypePtr& type,
     const variant& var,
     std::vector<std::unique_ptr<cudf::scalar>>& scalars) {
-  using T = typename TypeTraits<Kind>::NativeType;
+  using T = typename TypeTraits<kind>::NativeType;
   T value = var.value<T>();
   auto scalar = makeScalarFromValue(type, value, false);
   scalars.emplace_back(std::move(scalar));
-  return makeLiteralFromScalar(*(scalars.back()), type);
+  return makeLiteralFromScalar<T>(*(scalars.back()), type);
 }
 
 cudf::ast::literal createLiteral(
@@ -823,7 +822,7 @@ class SwitchFunction : public CudfFunction {
     } else if (left_ == nullptr) {
       return cudf::copy_if_else(
           asView(inputColumns[1]), *right_, asView(inputColumns[0]), stream, mr);
-    } else if (right == nullptr) {
+    } else if (right_ == nullptr) {
       return cudf::copy_if_else(
         *left_, asView(inputColumns[1]), asView(inputColumns[0]), stream, mr);
     }
