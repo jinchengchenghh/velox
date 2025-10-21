@@ -154,7 +154,7 @@ static std::unique_ptr<cudf::scalar> createCudfScalar(
 }
 
 std::unique_ptr<cudf::scalar> makeScalarFromConstantExpr(const std::shared_ptr<velox::exec::Expr>& expr) {
-  auto constExpr =std::dynamic_pointer_cast<velox::exec::ConstantExpr>(input);
+  auto constExpr =std::dynamic_pointer_cast<velox::exec::ConstantExpr>(expr);
   VELOX_CHECK_NOT_NULL(constExpr);
   auto constValue = constExpr->value();
   return VELOX_DYNAMIC_SCALAR_TYPE_DISPATCH(
