@@ -26,14 +26,13 @@
 #include "velox/functions/sparksql/registration/Register.h"
 #include "velox/parse/TypeResolver.h"
 
-
 using namespace facebook::velox::exec::test;
 using namespace facebook::velox;
 
 namespace facebook::velox::cudf_velox {
 namespace {
 
-class CudfFilterProjectTest: public CudfFunctionBaseTest {
+class CudfFilterProjectTest : public CudfFunctionBaseTest {
  protected:
   static void SetUpTestCase() {
     parse::registerTypeResolver();
@@ -90,10 +89,11 @@ TEST_F(CudfFilterProjectTest, hashWithSeedMultiColumns) {
 }
 
 TEST_F(CudfFilterProjectTest, dateAdd) {
-    const auto dateAdd = [&](const std::string& dateStr,
-                           int32_t value) {
+  const auto dateAdd = [&](const std::string& dateStr, int32_t value) {
     return evaluateOnce<int32_t>(
-        fmt::format("date_add(c0, {})", value), {DATE()}, std::optional<int32_t>(parseDate(dateStr)));
+        fmt::format("date_add(c0, {})", value),
+        {DATE()},
+        std::optional<int32_t>(parseDate(dateStr)));
   };
 
   // Check simple tests.
@@ -106,4 +106,4 @@ TEST_F(CudfFilterProjectTest, dateAdd) {
 }
 
 } // namespace
-}
+} // namespace facebook::velox::cudf_velox

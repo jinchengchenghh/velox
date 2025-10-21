@@ -22,11 +22,9 @@
 
 namespace facebook::velox::cudf_velox {
 
-class CudfFunctionBaseTest: public testing::Test,
-                            public velox::test::VectorTestBase {
-
-  protected:
-
+class CudfFunctionBaseTest : public testing::Test,
+                             public velox::test::VectorTestBase {
+ protected:
   template <typename TReturn, typename... TArgs>
   std::optional<TReturn> evaluateOnce(
       const std::string& expr,
@@ -72,7 +70,7 @@ class CudfFunctionBaseTest: public testing::Test,
                                : TReturn(result->valueAt(0));
   }
 
-    /// Evaluate a given expression over a single row of input returning the
+  /// Evaluate a given expression over a single row of input returning the
   /// result as a std::optional C++ value. Prefer to use the `evaluateOnce()`
   /// helper methods below when testing simple functions instead of manually
   /// handling input and output vectors.
@@ -152,10 +150,10 @@ class CudfFunctionBaseTest: public testing::Test,
       const RowVectorPtr& data,
       const TypePtr& resultType = nullptr) {
     const auto plan = exec::test::PlanBuilder()
-                        .setParseOptions(options_)
-                        .values({data})
-                        .project({expression})
-                        .planNode();
+                          .setParseOptions(options_)
+                          .values({data})
+                          .project({expression})
+                          .planNode();
     auto result = exec::test::AssertQueryBuilder(plan).copyResults(pool());
     VELOX_CHECK_EQ(result->childrenSize(), 1);
     return castEvaluateResult<T>(result->childAt(0), expression, resultType);
@@ -179,8 +177,7 @@ class CudfFunctionBaseTest: public testing::Test,
 
   parse::ParseOptions options_;
 
-  private:
-
+ private:
   template <typename T>
   std::shared_ptr<T> castEvaluateResult(
       const VectorPtr& result,
@@ -211,7 +208,7 @@ class CudfFunctionBaseTest: public testing::Test,
     return castedResult;
   }
 
-    // Unpack parameters for evaluateOnce(). Base recursion case.
+  // Unpack parameters for evaluateOnce(). Base recursion case.
   template <typename...>
   std::vector<VectorPtr> unpackEvaluateParams(
       const std::vector<TypePtr>& types) {
@@ -241,5 +238,5 @@ class CudfFunctionBaseTest: public testing::Test,
     return output;
   }
 };
-  
-}
+
+} // namespace facebook::velox::cudf_velox

@@ -33,6 +33,7 @@
 #include <cudf/datetime.hpp>
 #include <cudf/hashing.hpp>
 #include <cudf/lists/count_elements.hpp>
+#include <cudf/replace.hpp>
 #include <cudf/round.hpp>
 #include <cudf/strings/attributes.hpp>
 #include <cudf/strings/case.hpp>
@@ -41,7 +42,6 @@
 #include <cudf/strings/split/split.hpp>
 #include <cudf/table/table.hpp>
 #include <cudf/transform.hpp>
-#include <cudf/replace.hpp>
 #include <cudf/unary.hpp>
 
 #include <limits>
@@ -94,8 +94,11 @@ variant getVariant(const VectorPtr& vector, size_t atIndex = 0) {
 }
 
 template <typename T>
-std::unique_ptr<cudf::scalar>
-makeScalarFromValue(const TypePtr& type, T value, bool isNull, std::optional<cudf::type_id> toType = std::nullopt) {
+std::unique_ptr<cudf::scalar> makeScalarFromValue(
+    const TypePtr& type,
+    T value,
+    bool isNull,
+    std::optional<cudf::type_id> toType = std::nullopt) {
   auto stream = cudf::get_default_stream();
   auto mr = cudf::get_current_device_resource_ref();
 
@@ -129,7 +132,8 @@ makeScalarFromValue(const TypePtr& type, T value, bool isNull, std::optional<cud
         return std::make_unique<cudf::duration_scalar<cudf::duration_D>>(
             value, !isNull, stream, mr);
       }
-      VELOX_FAIL("Unsupported result type {}", static_cast<int32_t>(toType.value()));
+      VELOX_FAIL(
+          "Unsupported result type {}", static_cast<int32_t>(toType.value()));
     } else {
       return std::make_unique<cudf::numeric_scalar<T>>(
           value, !isNull, stream, mr);
@@ -146,15 +150,17 @@ makeScalarFromValue(const TypePtr& type, T value, bool isNull, std::optional<cud
 
 template <TypeKind Kind>
 static std::unique_ptr<cudf::scalar> createCudfScalar(
-    const velox::VectorPtr& value, std::optional<cudf::type_id> toType = std::nullopt) {
+    const velox::VectorPtr& value,
+    std::optional<cudf::type_id> toType = std::nullopt) {
   using T = typename TypeTraits<Kind>::NativeType;
   auto vector = value->as<velox::ConstantVector<T>>();
   return makeScalarFromValue<T>(
       vector->type(), vector->value(), vector->isNullAt(0), toType);
 }
 
-std::unique_ptr<cudf::scalar> makeScalarFromConstantExpr(const std::shared_ptr<velox::exec::Expr>& expr) {
-  auto constExpr =std::dynamic_pointer_cast<velox::exec::ConstantExpr>(expr);
+std::unique_ptr<cudf::scalar> makeScalarFromConstantExpr(
+    const std::shared_ptr<velox::exec::Expr>& expr) {
+  auto constExpr = std::dynamic_pointer_cast<velox::exec::ConstantExpr>(expr);
   VELOX_CHECK_NOT_NULL(constExpr);
   auto constValue = constExpr->value();
   return VELOX_DYNAMIC_SCALAR_TYPE_DISPATCH(
@@ -774,12 +780,15 @@ class CastFunction : public CudfFunction {
   CastFunction(const std::shared_ptr<velox::exec::Expr>& expr) {
     VELOX_CHECK_EQ(expr->inputs().size(), 1, "cast expects exactly 1 input");
 
-    targetCudfType_ = cudf::data_type(
-        cudf_velox::veloxToCudfTypeId(expr->type()));
+    targetCudfType_ =
+        cudf::data_type(cudf_velox::veloxToCudfTypeId(expr->type()));
     auto sourceType = cudf::data_type(
         cudf_velox::veloxToCudfTypeId(expr->inputs()[0]->type()));
-    VELOX_CHECK(cudf::is_supported_cast(sourceType, targetCudfType_), "Cast from {} to {} is not supported",
-      expr->inputs()[0]->type()->toString(), expr->type()->toString());
+    VELOX_CHECK(
+        cudf::is_supported_cast(sourceType, targetCudfType_),
+        "Cast from {} to {} is not supported",
+        expr->inputs()[0]->type()->toString(),
+        expr->type()->toString());
   }
 
   ColumnOrView eval(
@@ -796,41 +805,45 @@ class CastFunction : public CudfFunction {
 
 // Spark date_add function implementation.
 // For the presto date_add, the first value is unit string,
-// may need to get the function with prefix, if the prefix is "", it is Spark function.
+// may need to get the function with prefix, if the prefix is "", it is Spark
+// function.
 class DateAddFunction : public CudfFunction {
  public:
-  DateAddFunction(const std::shared_ptr<velox::exec::Expr>& expr)  {
+  DateAddFunction(const std::shared_ptr<velox::exec::Expr>& expr) {
     VELOX_CHECK_EQ(
         expr->inputs().size(), 2, "date_add function expects exactly 2 inputs");
-    VELOX_CHECK(expr->inputs()[0]->type()->isDate(),
+    VELOX_CHECK(
+        expr->inputs()[0]->type()->isDate(),
         "First argument to date_add must be a date");
     VELOX_CHECK_NULL(std::dynamic_pointer_cast<velox::exec::ConstantExpr>(
-            expr->inputs()[0]));
-    auto valueExpr = std::dynamic_pointer_cast<velox::exec::ConstantExpr>(
-            expr->inputs()[1]);
+        expr->inputs()[0]));
+    auto valueExpr =
+        std::dynamic_pointer_cast<velox::exec::ConstantExpr>(expr->inputs()[1]);
     VELOX_CHECK_NOT_NULL(valueExpr);
     auto constValue = valueExpr->value();
     // The date_add second argument should be int8_t, int16_t, int32_t.
     value_ = VELOX_DYNAMIC_SCALAR_TYPE_DISPATCH(
-        createCudfScalar, constValue->typeKind(), constValue, cudf::type_id::DURATION_DAYS);
+        createCudfScalar,
+        constValue->typeKind(),
+        constValue,
+        cudf::type_id::DURATION_DAYS);
   }
 
   ColumnOrView eval(
-    std::vector<ColumnOrView>& inputColumns,
-    rmm::cuda_stream_view stream,
-    rmm::device_async_resource_ref mr) const override {
-
-  auto inputCol = asView(inputColumns[0]);
-  return cudf::binary_operation(
+      std::vector<ColumnOrView>& inputColumns,
+      rmm::cuda_stream_view stream,
+      rmm::device_async_resource_ref mr) const override {
+    auto inputCol = asView(inputColumns[0]);
+    return cudf::binary_operation(
         inputCol,
         *value_,
         cudf::binary_operator::ADD,
         cudf::data_type(cudf::type_id::TIMESTAMP_DAYS),
         stream,
         mr);
-}
+  }
 
-private:
+ private:
   std::unique_ptr<cudf::scalar> value_;
 };
 
@@ -1222,7 +1235,7 @@ bool registerBuiltinFunctions(const std::string& prefix) {
         return std::make_shared<CastFunction>(expr);
       });
 
-    registerCudfFunction(
+  registerCudfFunction(
       prefix + "date_add",
       [](const std::string&, const std::shared_ptr<velox::exec::Expr>& expr) {
         return std::make_shared<DateAddFunction>(expr);

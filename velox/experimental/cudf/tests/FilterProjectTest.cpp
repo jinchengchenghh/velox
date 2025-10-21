@@ -1043,7 +1043,6 @@ TEST_F(CudfFilterProjectTest, switchExpr) {
 
 class CudfSimpleFilterProjectTest : public cudf_velox::CudfFunctionBaseTest {
  protected:
-
   static void SetUpTestCase() {
     parse::registerTypeResolver();
     functions::prestosql::registerAllScalarFunctions();
@@ -1060,7 +1059,8 @@ class CudfSimpleFilterProjectTest : public cudf_velox::CudfFunctionBaseTest {
 TEST_F(CudfSimpleFilterProjectTest, castToSmallInt) {
   auto castValue = evaluateOnce<int16_t, int32_t>("cast(c0 as smallint)", 12);
   EXPECT_EQ(castValue, 12);
-  auto tryCast = evaluateOnce<int16_t, int32_t>("try_cast(c0 as smallint)", -214);
+  auto tryCast =
+      evaluateOnce<int16_t, int32_t>("try_cast(c0 as smallint)", -214);
   EXPECT_EQ(tryCast, -214);
 }
 
