@@ -129,7 +129,7 @@ makeScalarFromValue(const TypePtr& type, T value, bool isNull, std::optional<cud
         return std::make_unique<cudf::duration_scalar<cudf::duration_D>>(
             value, !isNull, stream, mr);
       }
-      VELOX_FAIL("Unsupported result type {}", static_cast<int32_t>(toType));
+      VELOX_FAIL("Unsupported result type {}", static_cast<int32_t>(toType.value()));
     } else {
       return std::make_unique<cudf::numeric_scalar<T>>(
           value, !isNull, stream, mr);
@@ -809,7 +809,7 @@ class DateAddFunction : public CudfFunction {
     auto valueExpr = std::dynamic_pointer_cast<velox::exec::ConstantExpr>(
             expr->inputs()[1]);
     VELOX_CHECK_NOT_NULL(valueExpr);
-    auto constValue = constExpr->value();
+    auto constValue = valueExpr->value();
     // The date_add second argument should be int8_t, int16_t, int32_t.
     value_ = VELOX_DYNAMIC_SCALAR_TYPE_DISPATCH(
         createCudfScalar, constValue->typeKind(), constValue, cudf::type_id::DURATION_DAYS);
