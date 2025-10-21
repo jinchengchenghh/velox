@@ -124,7 +124,7 @@ makeScalarFromValue(const TypePtr& type, T value, bool isNull, std::optional<cud
         return std::make_unique<cudf::timestamp_scalar<CudfDateType>>(
             value, !isNull, stream, mr);
       }
-    } else if (toType.hasValue()) {
+    } else if (toType.has_value()) {
       if (toType == cudf::type_id::DURATION_DAYS) {
         return std::make_unique<cudf::duration_scalar<cudf::duration_D>>(
             value, !isNull, stream, mr);
