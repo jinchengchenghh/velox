@@ -825,7 +825,7 @@ class DateAddFunction : public CudfFunction {
         inputCol,
         *value_,
         cudf::binary_operator::ADD,
-        cudf::data_type(cudf::type_id::INT32),
+        cudf::data_type(cudf::type_id::TIMESTAMP_DAYS),
         stream,
         mr);
 }
