@@ -158,7 +158,8 @@ static std::unique_ptr<cudf::scalar> createCudfScalar(
 }
 
 std::unique_ptr<cudf::scalar> makeScalarFromConstantExpr(
-    const std::shared_ptr<velox::exec::Expr>& expr) {
+    const std::shared_ptr<velox::exec::Expr>& expr,
+    std::optional<cudf::type_id> toType = std::nullopt) {
   auto constExpr = std::dynamic_pointer_cast<velox::exec::ConstantExpr>(expr);
   VELOX_CHECK_NOT_NULL(constExpr);
   auto constValue = constExpr->value();
@@ -816,16 +817,8 @@ class DateAddFunction : public CudfFunction {
         "First argument to date_add must be a date");
     VELOX_CHECK_NULL(std::dynamic_pointer_cast<velox::exec::ConstantExpr>(
         expr->inputs()[0]));
-    auto valueExpr =
-        std::dynamic_pointer_cast<velox::exec::ConstantExpr>(expr->inputs()[1]);
-    VELOX_CHECK_NOT_NULL(valueExpr);
-    auto constValue = valueExpr->value();
     // The date_add second argument should be int8_t, int16_t, int32_t.
-    value_ = VELOX_DYNAMIC_SCALAR_TYPE_DISPATCH(
-        createCudfScalar,
-        constValue->typeKind(),
-        constValue,
-        cudf::type_id::DURATION_DAYS);
+    value_ = makeScalarFromConstantExpr(expr->inputs()[1], cudf::type_id::DURATION_DAYS);
   }
 
   ColumnOrView eval(
