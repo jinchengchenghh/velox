@@ -36,11 +36,11 @@ class CudfFunctionBaseTest : public velox::functions::test::FunctionBaseTest {
     VELOX_CHECK(!rows.has_value());
     auto stream = cudf::get_default_stream();
     auto cudfTable = velox::cudf_velox::with_arrow::toCudfTable(input, pool_.get(), stream);
-    auto filterEvaluator = ExpressionEvaluator( {exprSet.exprs()[0]}, input->type());
+    auto filterEvaluator = ExpressionEvaluator( {exprSet.exprs()[0]}, input->rowType());
     auto filterColumns = filterEvaluator.compute(cudfTable->release(), stream, cudf::get_current_device_resource_ref());
-    auto filterColumn = filterColumns[0]->mutable_view();
+    auto filterColumnView = filterColumns[0]->mutable_view();
     cudf::table_view resultTable({filterColumnView});
-    auto veloxResult = velox::cudf_velox::with_arrow::toVeloxColumn(
+    auto result = velox::cudf_velox::with_arrow::toVeloxColumn(
         resultTable,
         pool_.get(),
         "",
