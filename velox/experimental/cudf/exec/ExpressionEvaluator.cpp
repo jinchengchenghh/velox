@@ -164,7 +164,7 @@ std::unique_ptr<cudf::scalar> makeScalarFromConstantExpr(
   VELOX_CHECK_NOT_NULL(constExpr);
   auto constValue = constExpr->value();
   return VELOX_DYNAMIC_SCALAR_TYPE_DISPATCH(
-      createCudfScalar, constValue->typeKind(), constValue);
+      createCudfScalar, constValue->typeKind(), constValue, toType);
 }
 
 template <TypeKind kind>
