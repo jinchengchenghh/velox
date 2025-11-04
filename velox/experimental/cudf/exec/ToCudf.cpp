@@ -163,7 +163,8 @@ bool CompileState::compile(bool allowCpuFallback) {
                    exec::Limit,
                    exec::LocalPartition,
                    exec::LocalExchange,
-                   exec::AssignUniqueId>(op) ||
+                   exec::AssignUniqueId,
+                   NvtxHelper>(op) ||
             isFilterProjectSupported(op) || isJoinSupported(op) ||
             isTableScanSupported(op);
       };
@@ -192,7 +193,8 @@ bool CompileState::compile(bool allowCpuFallback) {
                exec::HashAggregation,
                exec::Limit,
                exec::LocalExchange,
-               exec::AssignUniqueId>(op) ||
+               exec::AssignUniqueId,
+               NvtxHelper>(op) ||
         isFilterProjectSupported(op) ||
         (isAnyOf<exec::HashProbe>(op) && isJoinSupported(op)) ||
         (isTableScanSupported(op));
@@ -346,7 +348,8 @@ bool CompileState::compile(bool allowCpuFallback) {
           exec::LocalPartition,
           exec::LocalExchange,
           exec::FilterProject,
-          exec::AssignUniqueId>(op);
+          exec::AssignUniqueId,
+          NvtxHelper>(op);
     };
     auto GpuRetainedOperator =
         [isTableScanSupported](const exec::Operator* op) {
