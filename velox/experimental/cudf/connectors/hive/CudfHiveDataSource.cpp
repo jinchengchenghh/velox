@@ -18,11 +18,10 @@
 #include "velox/experimental/cudf/connectors/hive/CudfHiveConnectorSplit.h"
 #include "velox/experimental/cudf/connectors/hive/CudfHiveDataSource.h"
 #include "velox/experimental/cudf/connectors/hive/CudfHiveTableHandle.h"
+#include "velox/experimental/cudf/exec/ExpressionEvaluator.h"
 #include "velox/experimental/cudf/exec/ToCudf.h"
 #include "velox/experimental/cudf/exec/Utilities.h"
 #include "velox/experimental/cudf/exec/VeloxCudfInterop.h"
-#include "velox/experimental/cudf/expression/ExpressionEvaluator.h"
-#include "velox/experimental/cudf/expression/SubfieldFiltersToAst.h"
 #include "velox/experimental/cudf/vector/CudfVector.h"
 
 #include "velox/common/time/Timer.h"
@@ -131,8 +130,8 @@ CudfHiveDataSource::CudfHiveDataSource(
       }
     }();
 
-    cudfExpressionEvaluator_ = velox::cudf_velox::createCudfExpression(
-        remainingFilterExprSet_->exprs()[0], remainingFilterType_);
+    cudfExpressionEvaluator_ = velox::cudf_velox::ExpressionEvaluator(
+        remainingFilterExprSet_->exprs(), remainingFilterType_);
     // TODO(kn): Get column names and subfields from remaining filter and add to
     // readColumnNames_
   }
@@ -181,7 +180,7 @@ std::optional<RowVectorPtr> CudfHiveDataSource::next(
     const auto originalNumColumns = cudfTableColumns.size();
     // Filter may need addtional computed columns which are added to
     // cudfTableColumns
-    auto filterResult = cudfExpressionEvaluator_->eval(
+    auto filterResult = cudfExpressionEvaluator_.compute(
         cudfTableColumns, stream_, cudf::get_current_device_resource_ref());
     // discard computed columns
     std::vector<std::unique_ptr<cudf::column>> originalColumns;
@@ -195,7 +194,7 @@ std::optional<RowVectorPtr> CudfHiveDataSource::next(
     // Keep only rows where the filter is true
     cudfTable = cudf::apply_boolean_mask(
         *originalTable,
-        asView(filterResult),
+        *filterResult[0],
         stream_,
         cudf::get_current_device_resource_ref());
   }
