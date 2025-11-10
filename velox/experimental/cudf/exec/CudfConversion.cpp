@@ -89,10 +89,14 @@ void CudfFromVelox::addInput(RowVectorPtr input) {
   VELOX_NVTX_OPERATOR_FUNC_RANGE();
   if (input->size() > 0) {
     // Materialize lazy vectors
-    for (auto& child : input->children()) {
-      child->loadedVector();
+    if (!std::dynamic_pointer_cast<CudfVector>(input)) {
+      for (auto& child : input->children()) {
+        child->loadedVector();
+      }
+      input->loadedVector();
+    } else {
+      isCudfVector_ = true;
     }
-    input->loadedVector();
 
     // Accumulate inputs
     inputs_.push_back(input);
@@ -111,6 +115,13 @@ RowVectorPtr CudfFromVelox::getOutput() {
       (currentOutputSize_ < targetOutputSize and not noMoreInput_) or
       inputs_.empty()) {
     return nullptr;
+  }
+
+  if (isCudfVector_) {
+    auto first = inputs_.front();
+    inputs_.erase(inputs_.begin());
+    currentOutputSize_ -= first->size();
+    return first;
   }
 
   // Select inputs that don't exceed the max vector size limit
