@@ -54,9 +54,9 @@ Expand::Expand(
             "Expand operator doesn't support this expression. Only column references and constants are supported. {}",
             columnProjection->toString());
       }
-      std::cout <<"one projection finished"<< std::endl;
+      
     }
-
+    std::cout <<"one projection finished"<< std::endl;
     fieldProjections_.emplace_back(std::move(rowProjection));
     constantProjections_.emplace_back(std::move(constantProjection));
   }
@@ -92,7 +92,7 @@ RowVectorPtr Expand::getOutput() {
     if (rowProjection[i] == kConstantChannel) {
       const auto& constantExpr = constantProjection[i];
       std::cout <<"this column " << i << "is constant "<< constantExpr->toString()<< std::endl;
-      if (constantExpr->value().isNull()) {
+      if (constantExpr->isNull()) {
         std::cout <<"the constant is null"<< std::endl;
         // Add null column.
         outputColumns[i] = BaseVector::createNullConstant(
