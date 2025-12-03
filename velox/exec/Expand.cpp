@@ -92,17 +92,23 @@ RowVectorPtr Expand::getOutput() {
     if (rowProjection[i] == kConstantChannel) {
       const auto& constantExpr = constantProjection[i];
       std::cout <<"this column " << i << "is constant "<< constantExpr->toString()<< std::endl;
-      if (constantExpr->isNull()) {
-        std::cout <<"the constant is null"<< std::endl;
-        // Add null column.
-        outputColumns[i] = BaseVector::createNullConstant(
-            outputType_->childAt(i), numInput, pool());
-      } else {
-         std::cout <<"the constant is not null"<< std::endl;
-        // Add constant column.
-        outputColumns[i] = BaseVector::createConstant(
-            constantExpr->type(), constantExpr->value(), numInput, pool());
-      }
+      outputColumns[i] = constantExpr->toConstantVector(pool());
+      // if (constantExpr->isNull()) {
+      //   std::cout <<"the constant is null"<< std::endl;
+      //   // Add null column.
+      //   outputColumns[i] = BaseVector::createNullConstant(
+      //       outputType_->childAt(i), numInput, pool());
+      // } else if (constantExpr->hasValueVector()){
+
+      //    std::cout <<"the constant is not null has value vector"<< std::endl;
+      //   // Add constant column.
+      //   outputColumns[i] = constantExpr-
+      // } else {
+      //   std::cout <<"the constant is not null and is a variant"<< std::endl;
+      //   // Add constant column.
+      //   outputColumns[i] = BaseVector::createConstant(
+      //       constantExpr->type(), constantExpr->value(), numInput, pool());
+      // }
     } else {
       std::cout <<"the field got"<< std::endl;
       outputColumns[i] = input_->childAt(rowProjection[i]);
