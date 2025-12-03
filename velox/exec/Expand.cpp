@@ -15,6 +15,7 @@
  */
 #include "velox/exec/Expand.h"
 
+#include <iostream>
 namespace facebook::velox::exec {
 
 Expand::Expand(
@@ -40,17 +41,20 @@ Expand::Expand(
     constantProjection.reserve(numColumns);
     for (const auto& columnProjection : rowProjections) {
       if (auto field = core::TypedExprs::asFieldAccess(columnProjection)) {
+        std::cout <<"projection is field "<< std::endl;
         rowProjection.push_back(inputType->getChildIdx(field->name()));
         constantProjection.push_back(nullptr);
       } else if (
           auto constant = core::TypedExprs::asConstant(columnProjection)) {
         rowProjection.push_back(kConstantChannel);
         constantProjection.push_back(constant);
+        std::cout <<"projection is constant "<< std::endl;
       } else {
         VELOX_USER_FAIL(
             "Expand operator doesn't support this expression. Only column references and constants are supported. {}",
             columnProjection->toString());
       }
+      std::cout <<"one projection finished"<< std::endl;
     }
 
     fieldProjections_.emplace_back(std::move(rowProjection));
@@ -87,16 +91,20 @@ RowVectorPtr Expand::getOutput() {
   for (auto i = 0; i < numColumns; ++i) {
     if (rowProjection[i] == kConstantChannel) {
       const auto& constantExpr = constantProjection[i];
+      std::cout <<"this column " << i << "is constant "<< constantExpr->toString()<< std::endl;
       if (constantExpr->value().isNull()) {
+        std::cout <<"the constant is null"<< std::endl;
         // Add null column.
         outputColumns[i] = BaseVector::createNullConstant(
             outputType_->childAt(i), numInput, pool());
       } else {
+         std::cout <<"the constant is not null"<< std::endl;
         // Add constant column.
         outputColumns[i] = BaseVector::createConstant(
             constantExpr->type(), constantExpr->value(), numInput, pool());
       }
     } else {
+      std::cout <<"the field got"<< std::endl;
       outputColumns[i] = input_->childAt(rowProjection[i]);
     }
   }
@@ -107,8 +115,10 @@ RowVectorPtr Expand::getOutput() {
     input_ = nullptr;
   }
 
-  return std::make_shared<RowVector>(
+  auto rowVector = std::make_shared<RowVector>(
       pool(), outputType_, nullptr, numInput, std::move(outputColumns));
+  std::cout <<"expand row vector is " << rowVector->toString(0, 10)<< std::endl;
+  return rowVector;
 }
 
 } // namespace facebook::velox::exec
