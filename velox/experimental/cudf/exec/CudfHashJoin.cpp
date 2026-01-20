@@ -400,7 +400,7 @@ CudfHashJoinProbe::CudfHashJoinProbe(
     std::vector<PrecomputeInstruction> rightPrecomputeInstructions;
     std::vector<PrecomputeInstruction> leftPrecomputeInstructions;
     static constexpr bool kAllowPureAstOnly = true;
-    if (joinNode_->isRightJoin() || joinNode_->isRightSemiFilterJoin()) {
+    if (joinNode_->isAntiJoin() || joinNode_->isLeftSemiFilterJoin()) {
       createAstTree(
           exprs.exprs()[0],
           tree_,
@@ -409,16 +409,6 @@ CudfHashJoinProbe::CudfHashJoinProbe(
           probeType,
           rightPrecomputeInstructions,
           leftPrecomputeInstructions,
-          kAllowPureAstOnly);
-    } else {
-      createAstTree(
-          exprs.exprs()[0],
-          tree_,
-          scalars_,
-          probeType,
-          buildType,
-          leftPrecomputeInstructions,
-          rightPrecomputeInstructions,
           kAllowPureAstOnly);
     }
     if (leftPrecomputeInstructions.size() > 0 ||
