@@ -31,6 +31,7 @@
 #include <cudf/reduction.hpp>
 #include <cudf/stream_compaction.hpp>
 #include <cudf/unary.hpp>
+#include <iostream>
 
 namespace {
 
@@ -132,7 +133,9 @@ struct CountAggregator : cudf_velox::CudfHashAggregation::Aggregator {
       cudf::table_view const& input,
       TypePtr const& outputType,
       rmm::cuda_stream_view stream) override {
+    std::cout <<"count get the step " << core::AggregationNode::StepName::toName(step)<< std::endl;
     if (exec::isRawInput(step)) {
+      std::cout <<"The input is raw inpiut"<< std::endl;
       // For raw input, implement count using size + null count
       auto inputCol = input.column(constant == nullptr ? inputIndex : 0);
 
@@ -145,6 +148,7 @@ struct CountAggregator : cudf_velox::CudfHashAggregation::Aggregator {
 
       return cudf::make_column_from_scalar(resultScalar, 1, stream);
     } else {
+      std::cout <<"The input is not raw inpiut, use sum"<< std::endl;
       // For non-raw input (intermediate/final), use sum aggregation
       auto const aggRequest =
           cudf::make_sum_aggregation<cudf::reduce_aggregation>();
@@ -535,6 +539,7 @@ auto toAggregators(
     auto const inputIndex = aggInputs[0];
     auto const constant = aggConstants.empty() ? nullptr : aggConstants[0];
     auto const companionStep = getCompanionStep(kind, step);
+    std::cout <<"get companionStep " << core::AggregationNode::StepName::toName(companionStep) << " for kind " << kind << std::endl;
     const auto originalName = getOriginalName(kind);
     const auto resultType = exec::isPartialOutput(companionStep)
         ? exec::resolveIntermediateType(originalName, aggregate.rawInputTypes)
