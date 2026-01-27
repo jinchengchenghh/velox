@@ -41,7 +41,7 @@ export OS_CXXFLAGS
 export CMAKE_POLICY_VERSION_MINIMUM="3.5"
 
 DEPENDENCY_DIR=${DEPENDENCY_DIR:-$(pwd)}
-MACOS_VELOX_DEPS="bison flex gflags glog googletest icu4c libevent libsodium lz4 openssl protobuf@21 simdjson snappy xz xxhash zstd"
+MACOS_VELOX_DEPS="bison flex googletest icu4c libevent libsodium lz4 openssl protobuf@21 simdjson snappy xz xxhash zstd"
 
 MACOS_BUILD_DEPS="ninja cmake"
 
@@ -180,8 +180,9 @@ function install_velox_deps {
   run_and_time install_boost
   run_and_time install_fmt
   run_and_time install_fast_float
+    run_and_time install_geos
   # run_and_time install_folly
-  run_and_time install_fizz
+  # run_and_time install_fizz
   run_and_time install_wangle
   run_and_time install_mvfst
   run_and_time install_fbthrift
@@ -192,7 +193,6 @@ function install_velox_deps {
   # run_and_time install_thrift
   run_and_time install_arrow
   run_and_time install_duckdb_clang
-  run_and_time install_geos
   run_and_time install_faiss
 }
 
