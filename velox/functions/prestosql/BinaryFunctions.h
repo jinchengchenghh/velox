@@ -89,10 +89,13 @@ struct Sha1Function {
   FOLLY_ALWAYS_INLINE
   void call(out_type<Varbinary>& result, const arg_type<Varbinary>& input) {
     result.resize(20);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     folly::ssl::OpenSSLHash::sha1(
         folly::MutableByteRange((uint8_t*)result.data(), result.size()),
         folly::ByteRange((const uint8_t*)input.data(), input.size()));
   }
+#pragma GCC diagnostic pop
 };
 
 /// sha256(varbinary) -> varbinary
@@ -106,6 +109,7 @@ struct Sha256Function {
     folly::ssl::OpenSSLHash::sha256(
         folly::MutableByteRange((uint8_t*)result.data(), result.size()),
         folly::ByteRange((const uint8_t*)input.data(), input.size()));
+
   }
 };
 
@@ -167,11 +171,15 @@ struct HmacSha1Function {
   call(TOutput& result, const TInput& data, const TInput& key) {
     VELOX_USER_CHECK_GT(key.size(), 0, "Empty key is not allowed");
     result.resize(20);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     folly::ssl::OpenSSLHash::hmac_sha1(
         folly::MutableByteRange((uint8_t*)result.data(), result.size()),
         folly::ByteRange((const uint8_t*)key.data(), key.size()),
         folly::ByteRange((const uint8_t*)data.data(), data.size()));
+
   }
+#pragma GCC diagnostic pop
 };
 
 /// hmac_sha256(varbinary) -> varbinary

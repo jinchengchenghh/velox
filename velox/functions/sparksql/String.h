@@ -167,11 +167,14 @@ struct Sha1HexStringFunction {
   void call(out_type<Varchar>& result, const arg_type<Varbinary>& input) {
     static const int kSha1Length = 20;
     result.resize(kSha1Length * 2);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     folly::ssl::OpenSSLHash::sha1(
         folly::MutableByteRange((uint8_t*)result.data(), kSha1Length),
         folly::ByteRange((const uint8_t*)input.data(), input.size()));
     encodeDigestToBase16((uint8_t*)result.data(), kSha1Length);
   }
+#pragma GCC diagnostic pop
 };
 
 /// sha2 function
