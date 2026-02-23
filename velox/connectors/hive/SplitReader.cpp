@@ -113,7 +113,6 @@ std::unique_ptr<SplitReader> SplitReader::create(
         readerOutputType,
         ioStatistics,
         ioStats,
-        fsStats,
         fileHandleFactory,
         ioExecutor,
         scanSpec);
@@ -127,7 +126,6 @@ std::unique_ptr<SplitReader> SplitReader::create(
         readerOutputType,
         ioStatistics,
         ioStats,
-        fsStats,
         fileHandleFactory,
         ioExecutor,
         scanSpec,
