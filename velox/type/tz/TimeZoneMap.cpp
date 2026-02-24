@@ -144,6 +144,16 @@ inline bool isTimeZoneOffset(std::string_view str) {
 inline bool isUtcEquivalentName(std::string_view zone) {
   static folly::F14FastSet<std::string> utcSet = {
       "utc", "uct", "gmt", "gmt0", "greenwich", "universal", "zulu", "z"};
+    LOG(WARNING) << "zoneId size: " << zone.size();
+
+  for (size_t i = 0; i < zone.size(); ++i) {
+    LOG(WARNING) << "zoneId[" << i << "] = " << int(zone[i]);
+  }
+  LOG(WARNING) << "Dumping utcSet contents:";
+  for (const auto& v : utcSet) {
+    LOG(WARNING) << "utcSet entry: [" << v << "]";
+  }
+
   return utcSet.find(zone) != utcSet.end();
 }
 
