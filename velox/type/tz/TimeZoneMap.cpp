@@ -142,19 +142,17 @@ inline bool isTimeZoneOffset(std::string_view str) {
 // The timezone parsing logic follows what is defined here:
 //   https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 inline bool isUtcEquivalentName(std::string_view zone) {
-  static folly::F14FastSet<std::string> utcSet = {
-      "utc", "uct", "gmt", "gmt0", "greenwich", "universal", "zulu", "z"};
-    LOG(WARNING) << "zoneId size: " << zone.size();
+    static const std::vector<std::string> utcVec = {
+        "utc", "uct", "gmt", "gmt0",
+        "greenwich", "universal", "zulu", "z"
+    };
 
-  for (size_t i = 0; i < zone.size(); ++i) {
-    LOG(WARNING) << "zoneId[" << i << "] = " << int(zone[i]);
-  }
-  LOG(WARNING) << "Dumping utcSet contents:";
-  for (const auto& v : utcSet) {
-    LOG(WARNING) << "utcSet entry: [" << v << "]";
-  }
-
-  return utcSet.find(std::string(zone)) != utcSet.end();
+    for (const auto& entry : utcVec) {
+        if (entry == zone) {  // std::string compares fine with std::string_view
+            return true;
+        }
+    }
+    return false;
 }
 
 // This function tries to apply two normalization rules to time zone offsets:
