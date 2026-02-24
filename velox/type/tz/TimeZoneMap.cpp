@@ -154,7 +154,7 @@ inline bool isUtcEquivalentName(std::string_view zone) {
     LOG(WARNING) << "utcSet entry: [" << v << "]";
   }
 
-  return utcSet.find(zone) != utcSet.end();
+  return utcSet.find(std::string(zone)) != utcSet.end();
 }
 
 // This function tries to apply two normalization rules to time zone offsets:
