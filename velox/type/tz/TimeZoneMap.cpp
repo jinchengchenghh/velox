@@ -172,22 +172,34 @@ std::string normalizeTimeZoneOffset(const std::string& zoneOffset) {
 std::string normalizeTimeZone(const std::string& originalZoneId) {
   // If this is an offset that hasn't matched, check if this is an incomplete
   // offset.
+  LOG(WARNING) << "normalizeTimeZone() originalZoneId: [" << originalZoneId << "]";
+
   if (isTimeZoneOffset(originalZoneId)) {
+    LOG(WARNING) << "Detected timezone offset";
     return normalizeTimeZoneOffset(originalZoneId);
   }
 
-  // Otherwise, try other time zone name normalizations.
   std::string_view zoneId = originalZoneId;
   const bool startsWithEtc = startsWith(zoneId, "etc/");
+
+  LOG(WARNING) << "startsWithEtc: " << startsWithEtc;
 
   if (startsWithEtc) {
     zoneId = zoneId.substr(4);
   }
 
-  // ETC/GMT, ETC/GREENWICH, and others are all valid and link to GMT.
-  if (isUtcEquivalentName(zoneId)) {
+  LOG(WARNING) << "zoneId after etc stripping: [" << zoneId << "]";
+
+  const bool isUtcAlias = isUtcEquivalentName(zoneId);
+  LOG(WARNING) << "isUtcEquivalentName(" << zoneId << ") = " << isUtcAlias;
+
+  if (isUtcAlias) {
+    LOG(WARNING) << "Returning normalized timezone: utc";
     return "utc";
   }
+
+  LOG(WARNING) << "Falling through normalization logic...";
+
 
   bool startsWithUtc = startsWith(zoneId, "utc");
   bool startsWithGmt = startsWith(zoneId, "gmt");
@@ -392,6 +404,8 @@ const TimeZone* locateZone(std::string_view timeZone, bool failOnError) {
   if (it != timeZoneIndex.end()) {
     return it->second;
   }
+
+  LOG(WARNING) << "locateZone";
 
   // If an exact match wasn't found, try to normalize the timezone name.
   it = timeZoneIndex.find(normalizeTimeZone(timeZoneLowered));
