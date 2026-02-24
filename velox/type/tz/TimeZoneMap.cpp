@@ -192,6 +192,12 @@ std::string normalizeTimeZone(const std::string& originalZoneId) {
 
   const bool isUtcAlias = isUtcEquivalentName(zoneId);
   LOG(WARNING) << "isUtcEquivalentName(" << zoneId << ") = " << isUtcAlias;
+  LOG(INFO) << "zoneId size: " << zoneId.size();
+
+  for (size_t i = 0; i < zoneId.size(); ++i) {
+    LOG(INFO) << "zoneId[" << i << "] = " << int(zoneId[i]);
+  }
+
 
   if (isUtcAlias) {
     LOG(WARNING) << "Returning normalized timezone: utc";
