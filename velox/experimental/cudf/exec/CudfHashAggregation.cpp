@@ -1227,7 +1227,7 @@ void registerAggregationFunctionForStep(
     const std::string& name,
     core::AggregationNode::Step step,
     const exec::FunctionSignaturePtr& signature) {
-  registerAggregationFunctionForStep(name, step, {signature});
+  facebook::velox::cudf_velox::registerAggregationFunctionForStep(name, step, {signature});
 }
 } // namespace
 
@@ -1617,7 +1617,7 @@ bool registerStepAwareBuiltinAggregationFunctions(const std::string& prefix) {
   // AVG partial REAL->row(DOUBLE,BIGINT) and intermediate are the same for
   // both engines and are already registered above.
 
-  if (CudfConfig::getInstance().functionEngine == "spark") {
+  if (true) {
     // Spark: SUM(REAL) -> DOUBLE, AVG(REAL) -> DOUBLE
     registerAggregationFunctionForStep(
         prefix + "sum",
