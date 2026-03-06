@@ -1286,7 +1286,6 @@ bool registerStepAwareBuiltinAggregationFunctions(const std::string& prefix) {
           .returnType("double")
           .argumentType("double")
           .build()};
-  LOG(WARNING) << "Registering sum function for step partial: " << static_cast<int>(core::AggregationNode::Step::kPartial);
   registerAggregationFunctionForStep(
       prefix + "sum",
       core::AggregationNode::Step::kPartial,
@@ -1697,20 +1696,14 @@ bool registerStepAwareBuiltinAggregationFunctions(const std::string& prefix) {
 bool matchTypedCallAgainstSignatures(
     const core::CallTypedExpr& call,
     const std::vector<exec::FunctionSignaturePtr>& sigs) {
-  LOG(WARNING) << "Matching call: " << call.toString() << " against "
-               << sigs.size() << " signatures";
   const auto n = call.inputs().size();
   std::vector<TypePtr> argTypes;
   argTypes.reserve(n);
-  int i = 0;
   for (const auto& input : call.inputs()) {
     argTypes.push_back(input->type());
-    LOG(WARNING) << "Call " << call.toString()  << " at index" << i<< "  Argument type: " << input->type()->toString();
-    i++;
   }
   for (const auto& sig : sigs) {
     std::vector<Coercion> coercions(n);
-    LOG(WARNING) << "Trying signature: " << sig->toString() << " for call: " << call.toString();
     exec::SignatureBinder binder(*sig, argTypes);
     if (!binder.tryBindWithCoercions(coercions)) {
       continue;
@@ -1718,11 +1711,9 @@ bool matchTypedCallAgainstSignatures(
 
     // For simplicity we skip checking for constant agruments, this may be added
     // in the future
-    LOG(WARNING) << "Call " << call.toString() << " matches signature: "
-                 << sig->toString();
+
     return true;
   }
-  LOG(WARNING) << "Call " << call.toString() << " does not match any signature";
   return false;
 }
 
@@ -1735,19 +1726,14 @@ bool canAggregationBeEvaluatedByCudf(
   // Check against step-aware aggregation registry
   const auto companionStep = getCompanionStep(call.name(), step);
   const auto originalName = getOriginalName(call.name());
-  LOG(WARNING) << "Validating aggregation function: " << call.toString() << " " << originalName
-               << " with companion step: " << static_cast<int32_t>(companionStep);
   auto& stepAwareRegistry = getStepAwareAggregationRegistry();
   auto funcIt = stepAwareRegistry.find(originalName);
   if (funcIt == stepAwareRegistry.end()) {
-    LOG(WARNING) << "Function " << originalName << " not found in step-aware aggregation registry";
     return false;
   }
 
   auto stepIt = funcIt->second.find(companionStep);
   if (stepIt == funcIt->second.end()) {
-    LOG(WARNING) << "No signatures found for function " << originalName
-                 << " and step " << static_cast<int32_t>(companionStep);
     return false;
   }
 
