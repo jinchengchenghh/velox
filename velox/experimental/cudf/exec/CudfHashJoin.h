@@ -146,10 +146,9 @@ class CudfHashJoinProbe : public CudfOperatorBase {
   /// Supported types:
   /// - Inner, Left, Right, Full joins
   /// - Left/Right Semi Filter joins
-  /// - Left Semi Project join (excluding null-aware join with filter)
-  /// - Anti join (non-null-aware, or null-aware without filter)
-  /// Note: Right Semi Project, and null-aware left semi-project join with
-  /// filter not yet supported.
+  /// - Left Semi Project join (including null-aware with and without filter)
+  /// - Anti join (including null-aware with and without filter)
+  /// Note: Right Semi Project join not yet supported.
   static bool isSupportedJoinType(core::JoinType joinType) {
     return joinType == core::JoinType::kInner ||
         joinType == core::JoinType::kLeft ||

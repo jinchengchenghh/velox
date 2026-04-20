@@ -282,9 +282,8 @@ void CudfHashJoinBuild::doNoMoreInput() {
       std::dynamic_pointer_cast<CudfHashJoinBridge>(joinBridge);
 
   cudfHashJoinBridge->setBuildStream(stream);
-  cudfHashJoinBridge->setHashTable(
-      std::make_optional(
-          std::make_pair(std::move(shared_tbls), std::move(hashObjects))));
+  cudfHashJoinBridge->setHashTable(std::make_optional(
+      std::make_pair(std::move(shared_tbls), std::move(hashObjects))));
 }
 
 exec::BlockingReason CudfHashJoinBuild::isBlocked(ContinueFuture* future) {
@@ -1293,7 +1292,8 @@ CudfHashJoinProbe::leftSemiProjectJoin(
   auto& hbs = hashObject_.value().second;
   auto numProbeRows = leftTableView.num_rows();
 
-  const bool isNullAware = joinNode_->isNullAware() && !joinNode_->filter();
+  const bool isNullAware = joinNode_->isNullAware();
+  // In leftSemiProjectJoin(), after the batch loop that builds matchCol:
 
   // Create probe row indices sequence: [0, 1, 2, ..., numProbeRows-1]
   // Used with cudf::contains to create the match column
@@ -1436,6 +1436,7 @@ CudfHashJoinProbe::leftSemiProjectJoin(
         std::unique_ptr<cudf::column> nullMask;
         if (buildSideHasNullKeys_) {
           // NULL where: probe key is NULL OR no match
+          // This applies regardless of whether there's a filter
           auto noMatchMask = cudf::unary_operation(
               matchCol->view(),
               cudf::unary_operator::NOT,
@@ -1547,6 +1548,123 @@ std::vector<std::unique_ptr<cudf::table>> CudfHashJoinProbe::antiJoin(
   // Otherwise, we use the input view directly.
   std::unique_ptr<cudf::table> modifiedLeftTable;
   cudf::table_view leftTableView = leftTableViewParam;
+
+  if (joinNode_->isNullAware() && joinNode_->filter()) {
+    // Rule 1: build has null keys → empty result
+    if (cudf::has_nulls(rightTableView.select(rightKeyIndices_))) {
+      std::vector<std::unique_ptr<cudf::column>> emptyCols;
+      emptyCols.reserve(outputType_->size());
+      for (int i = 0; i < outputType_->size(); i++) {
+        emptyCols.push_back(cudf::make_empty_column(
+            cudf::data_type{veloxToCudfTypeId(outputType_->childAt(i))}));
+      }
+      cudfOutputs.push_back(
+          std::make_unique<cudf::table>(std::move(emptyCols)));
+      return cudfOutputs;
+    }
+
+    // Rule 2: drop probe rows with null keys
+    std::unique_ptr<cudf::table> modifiedLeftTable;
+    cudf::table_view leftTableView = leftTableViewParam;
+    if (cudf::has_nulls(leftTableViewParam.select(leftKeyIndices_))) {
+      modifiedLeftTable = cudf::drop_nulls(
+          leftTableViewParam, leftKeyIndices_, stream, get_temp_mr());
+      leftTableView = modifiedLeftTable->view();
+    }
+
+    // Rule 3: inner join first, then apply filter, then anti = probe - matched
+    // Step 3a: get all key-matching pairs via inner join
+    cudf::filtered_join filter_join(
+        rightTableView.select(rightKeyIndices_),
+        cudf::null_equality::UNEQUAL, // keys already null-dropped
+        stream);
+    auto leftMatchedIndices = filter_join.inner_join(
+        leftTableView.select(leftKeyIndices_), stream, get_temp_mr());
+    // This gives probe indices that have at least a key match —
+    // we then apply the filter to see which ones truly "match"
+
+    // Step 3b: apply filter on joined pairs to find truly matched probe rows
+    // Re-use filteredOutputIndices infrastructure but capture only left indices
+    auto numProbeRows = leftTableView.num_rows();
+    auto probeRowIndices = cudf::sequence(
+        numProbeRows,
+        cudf::numeric_scalar<cudf::size_type>(0, true, stream, get_temp_mr()),
+        cudf::numeric_scalar<cudf::size_type>(1, true, stream, get_temp_mr()),
+        stream,
+        get_temp_mr());
+
+    // inner_join returns (left_idx, right_idx) pairs
+    // We need paired right indices too — use hash_join directly
+    // Reuse hashObject_ if available (anti join doesn't build hash_join
+    // for non-filter path, so build it here)
+    auto hb = std::make_shared<cudf::hash_join>(
+        rightTableView.select(rightKeyIndices_),
+        cudf::null_equality::UNEQUAL,
+        stream);
+
+    auto [leftJoinIndices, rightJoinIndices] = hb->inner_join(
+        leftTableView.select(leftKeyIndices_),
+        std::nullopt,
+        stream,
+        get_temp_mr());
+
+    if (leftJoinIndices->size() > 0) {
+      auto leftIndicesSpan =
+          cudf::device_span<cudf::size_type const>{*leftJoinIndices};
+      auto rightIndicesSpan =
+          cudf::device_span<cudf::size_type const>{*rightJoinIndices};
+
+      // Step 3c: filter_join_indices with INNER_JOIN to find pairs
+      //          that pass the predicate
+      cudf::table_view extendedLeftView = leftTableView;
+      cudf::table_view extendedRightView = rightTableView;
+      // (apply precompute if any, reuse existing pattern)
+
+      auto [filteredLeft, filteredRight] = cudf::filter_join_indices(
+          extendedLeftView,
+          extendedRightView,
+          leftIndicesSpan,
+          rightIndicesSpan,
+          tree_.back(),
+          cudf::join_kind::INNER_JOIN,
+          stream,
+          get_temp_mr());
+
+      if (filteredLeft->size() > 0) {
+        // Step 3d: matched probe indices = set of left indices that passed
+        // filter
+        auto filteredLeftSpan =
+            cudf::device_span<cudf::size_type const>{*filteredLeft};
+        auto matchedIndicesCol = cudf::column_view{filteredLeftSpan};
+
+        // Step 3e: anti = all probe rows NOT in matchedIndicesCol
+        // Build boolean mask: true where probe row index is NOT matched
+        auto matchedFlags = cudf::contains(
+            matchedIndicesCol, probeRowIndices->view(), stream, get_temp_mr());
+        auto antiMask = cudf::unary_operation(
+            matchedFlags->view(),
+            cudf::unary_operator::NOT,
+            stream,
+            get_temp_mr());
+
+        // Step 3f: apply mask to get anti join output
+        auto filteredProbe = cudf::apply_boolean_mask(
+            leftTableView, antiMask->view(), stream, get_output_mr());
+        // gather output columns in correct order
+        auto outCols = gatherOutputColumns(
+            filteredProbe->view(),
+            cudf::table_view{}, // no right cols in anti output
+            stream);
+        cudfOutputs.push_back(
+            std::make_unique<cudf::table>(std::move(outCols)));
+        return cudfOutputs;
+      }
+    }
+
+    // No matches passed filter → return all probe rows
+    cudfOutputs.push_back(gatherProbeOnlyOutput(leftTableView, stream));
+    return cudfOutputs;
+  }
 
   // Special case for null-aware anti join where
   // build table is not empty, no nulls, and probe table has nulls
